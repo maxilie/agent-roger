@@ -14,6 +14,8 @@ Set environment variables:
 - For local development, set correct environment variables in a new `.env`.
 - For deployment, set correct environment variables in the Vercel dashboard.
 
+NOTE: If you get a type error for `drizzle-kit` in `/src/drizzle.config.ts`, then you need to install `drizzle-kit@db-push`.
+
 # Deploying
 
 1. Push to GitHub to trigger new Vercel deployment of the dashboard.
@@ -21,6 +23,8 @@ Set environment variables:
 
 ```
 cd agent-roger
+docker-compose down  # ensures database is saved to disk
+docker-compose rm -f  # if you want to rebuild from scratch
 docker-compose up  # OR, TO RUN IN BACKGROUND:  docker-compose up -d
 ```
 

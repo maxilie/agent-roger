@@ -1,15 +1,22 @@
 console.log("Starting up! Importing dependencies...");
 
-import dotenv from "dotenv";
+import * as dotenv from "dotenv";
 import weaviate, { type WeaviateClient, ApiKey } from "weaviate-ts-client";
-import { handleTask, type RogerTask } from "./task";
-import { db } from "../src/db/db";
+import { handleTask, type RogerTask } from "./task.mjs";
 
 // load env vars
 dotenv.config();
 
+import {
+  drizzle,
+  type PlanetScaleDatabase,
+} from "drizzle-orm/planetscale-serverless";
+
+import { connect } from "@planetscale/database";
+
 // globals
 let weaviateClient: WeaviateClient;
+let sqlClient: PlanetScaleDatabase;
 
 const initialize = () => {
   // connect to weavius
@@ -20,6 +27,19 @@ const initialize = () => {
   });
   console.log("connected to weavius");
   console.log(weaviateClient);
+
+  // connect to sql
+  sqlClient = drizzle(
+    connect({
+      host: process.env.DATABASE_HOST,
+      username: process.env.DATABASE_USERNAME,
+      password: 'sdfs',
+    })
+  );
+  console.log("connected to sql");
+  console.log(sqlClient);
+
+  // connect to sql
 
   // Their example:
   // client.schema
@@ -41,6 +61,10 @@ const runNextTask = async (): Promise<void> => {
 
   // eslint-disable-next-line @typescript-eslint/await-thenable
   await handleTask(task);
+  console.log(task.id);
+
+  // run next task after returning to event loop
+  setImmediate(runNextTask);
 };
 
 const getNextTask = (): Promise<RogerTask> => {
@@ -52,18 +76,18 @@ const getNextTask = (): Promise<RogerTask> => {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve({ id: 1, type: "test" });
-    }, 1000);
+    }, 1);
   });
 };
 
 const main = () => {
   console.log("Running main...");
   initialize();
-  while (true) {
     runNextTask().catch((error) => {
       console.log("Error running task: ", error);
+      console.log('Restarting in 5 seconds...');
+      setTimeout(main, 5000);
     });
-  }
 };
 
 try {

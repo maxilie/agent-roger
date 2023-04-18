@@ -1,17 +1,16 @@
-FROM node:18
+FROM node:18.5.0 as base
 
-ENV PATH=/usr/local/node/bin:$PATH
+WORKDIR /home/node/app
 
-RUN mkdir /app
-RUN mkdir /app/src
-RUN mkdir /app/main
-WORKDIR /app/main
-COPY agent-roger-task-runner/ /app/main
-COPY src/ /app/src
+COPY agent-roger-task-runner/package*.json ./
 
-# install dependencies
-RUN npm install
+RUN npm i
 
-ENV NODE_ENV production
+COPY agent-roger-task-runner/tsconfig.json ./
+COPY agent-roger-task-runner/src ./src
+
+FROM base as production
+
+ENV NODE_PATH=./src
 
 CMD [ "npm", "run", "start" ]

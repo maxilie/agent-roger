@@ -17,6 +17,7 @@ const server = z.object({
   WEAVIATE_HOST: z.string().min(1),
   WEAVIATE_KEY: z.string().min(1),
   WEAVIATE_BACKUP_DIR: z.string().min(1),
+  OPENAI_API_KEY: z.string().min(1),
 });
 
 /**
@@ -50,6 +51,7 @@ const processEnv = {
   WEAVIATE_KEY: process.env.WEAVIATE_KEY,
   WEAVIATE_BACKUP_DIR: process.env.WEAVIATE_BACKUP_DIR,
   WEAVIATE_HOST: process.env.WEAVIATE_HOST,
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
 };
 
 // Don't touch the part below
