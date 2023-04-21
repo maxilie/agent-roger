@@ -42,6 +42,8 @@ To change database schema:
 1. Log in to planetscale.com.
 2. Create a new branch of the main database and copy the credentials into your local `.env` file.
 3. Change `/src/db/schema.ts` and other files as necessary.
-4. Run `npx drizzle-kit push:mysql` to update the new PlanetScale branch.
-5. Change any router and component code necessary to work with the new schema.
-6. Once everything is working locally, go to the PlanetScale branch and create a new "deploy request", and then approve the deploy request to update the db main branch's schema.
+4. Install (temporarily) special version of drizzle-kit: `yarn add --dev drizzle-kit@db-push`.
+5. Run `npx drizzle-kit push:mysql` to update the new PlanetScale branch.
+6. Update drizzle-kit or else Vercel deployment will fail: `yarn remove drizzle-kit && yarn add --dev drizzle-kit`.
+7. Change any router and component code necessary to work with the new schema.
+8. Once everything is working locally, go to the PlanetScale branch and create a new "deploy request", and then approve the deploy request to update the db main branch's schema.
