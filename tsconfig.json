@@ -27,7 +27,12 @@
     "**/*.ts",
     "**/*.tsx",
     "**/*.cjs",
-    "**/*.mjs"
+    "**/*.mjs",
+    "src/components/force-graph.jsx"
   ],
-  "exclude": ["node_modules", "agent-roger-task-runner"]
+  "exclude": [
+    "node_modules",
+    "agent-roger-task-runner",
+    "src/components/force-graph.jsx"
+  ]
 }

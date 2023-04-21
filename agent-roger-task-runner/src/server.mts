@@ -3,6 +3,7 @@ console.log("Starting up! Importing dependencies...");
 import * as dotenv from "dotenv";
 import weaviate, { type WeaviateClient, ApiKey } from "weaviate-ts-client";
 import { handleTask, type RogerTask } from "./task.mjs";
+import type * as neo4j from "neo4j-driver"
 
 // load env vars
 dotenv.config();
@@ -17,6 +18,7 @@ import { connect } from "@planetscale/database";
 // globals
 let weaviateClient: WeaviateClient;
 let sqlClient: PlanetScaleDatabase;
+let neo4jDriver: neo4j.Driver;
 
 const initialize = () => {
   // connect to weavius
@@ -96,3 +98,13 @@ try {
   console.log("Error starting the task runner:");
   console.log(error);
 }
+
+// close connections on exit
+process.on("SIGINT", async () => {
+  console.log("Shutting down...");
+  try {
+    await neo4jDriver?.close();
+  } catch (_) { }
+  console.log("Successfully shut down!");
+  process.exit(0);
+});
