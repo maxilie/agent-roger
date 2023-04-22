@@ -4,7 +4,7 @@
 
 ### This repo also comes with a dashboard to visualize and modify the tree, improving the AI's logic in real time.
 
-## Demo
+### Demo
 
 demo pics and video go here
 
