@@ -70,7 +70,7 @@ const runNextTask = async (): Promise<void> => {
 };
 
 const getNextTask = (): Promise<RogerTask> => {
-  // TODO scan graph db for a task with awaiting_children=false and completed=false and paused=false
+  // TODO scan graph db for a task with awaiting_children=false, paused=false, dead=false, success=null
 
   // TODO get task data from sql
 

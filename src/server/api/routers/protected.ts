@@ -12,7 +12,6 @@ type Neo4JTask = {
   };
 };
 
-
 // API endpoints for handling managed users
 export const tasksRouter = createTRPCRouter({
   // returns N most recently updated root nodes
@@ -62,9 +61,9 @@ export const tasksRouter = createTRPCRouter({
           target: Neo4JTask;
           relation: object;
         }>(
-          "MATCH (root_task:Task {taskID: $idParam})-[link:SPAWNED*0..]->(sub_task:Task) \
-          WITH DISTINCT link, sub_task \
-          UNWIND link AS relation \
+          "MATCH (root_task:Task {taskID: $idParam}) \
+          CALL apoc.path.subgraphAll(root_task, {relationshipFilter: 'SPAWNED>', maxLevel: -1}) YIELD nodes, relationships \
+          UNWIND relationships AS relation \
           RETURN startNode(relation) AS source, relation, endNode(relation) AS target; ",
           {
             idParam: input.rootTaskID,
@@ -101,7 +100,7 @@ export const tasksRouter = createTRPCRouter({
           await neo4jSession?.close();
           await neo4jDriver?.close();
         } finally {
-        return { taskIDs: [], links: [], tasks: [] };
+          return { taskIDs: [], links: [], tasks: [] };
         }
       }
     }),
@@ -122,6 +121,12 @@ WITH [
 MATCH (root_task:Task {taskID: 12})
 FOREACH (sub_task_props IN sub_tasks |
   MERGE (sub_task:Task {taskID: sub_task_props.taskID})
-  MERGE (root_task)-[:SPAWNED]->(sub_task)
-)
+  MERGE (root_task)-[:SPAWNED]->(sub_task))
+
+
+  * mark as dead nodes with id in array of ids
+MATCH (n)
+WHERE n.taskID IN $taskIDs
+SET n.isDead = 'true'
+RETURN n
  */

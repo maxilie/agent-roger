@@ -4,7 +4,13 @@ import { type NextPage } from "next";
 
 import { Button } from "~/components/ui/button";
 import { useRouter } from "next/router";
-import { ArrowLeftCircle, CheckCircle, Loader2, Webhook } from "lucide-react";
+import {
+  ArrowLeftCircle,
+  CheckCircle,
+  Loader2,
+  Webhook,
+  XSquare,
+} from "lucide-react";
 import { type SetStateAction, useCallback, useEffect, useState } from "react";
 import { api, RouterOutputs } from "~/utils/api";
 import { TaskType, type TaskLink, type TaskNode } from "~/types";
@@ -133,10 +139,10 @@ const Dashboard: NextPage = () => {
     ): TaskNode | null => {
       const task = selectedTaskTree.tasks.find((task) => task.taskID == nodeID);
       if (!task) return null;
-      let status = task.success != null && task.success ? "success" : "pending";
+      let status = task.success != null && !task.success ? "failed" : "running";
       if (task.paused) status = "paused";
-      if (task.success != null && !task.success) status = "failed";
-      if (status == "pending" && !task.awaitingChildren) status = "running";
+      if (task.success != null && task.success) status = "success";
+      if (task.dead) status = "dead";
       return {
         id: task.taskID,
         name:
@@ -146,6 +152,7 @@ const Dashboard: NextPage = () => {
           task.taskID +
           ") is " +
           status.toUpperCase(),
+        dead: task.dead,
         value: getNodeSize(task),
         level,
         status: status as
@@ -156,6 +163,7 @@ const Dashboard: NextPage = () => {
           | "paused",
         type: task.taskType as TaskType,
         parentID,
+        idxInSiblingGroup: 1,
         descendentIDs: [],
       };
     };
@@ -220,6 +228,41 @@ const Dashboard: NextPage = () => {
     const newNodes = Array.from(idToTaskNode.values());
     newNodes.forEach((node) => markDescendents(node));
 
+    // mark order each node was created relative to its siblings
+    selectedTaskTree.tasks.forEach((task) => {
+      newLinks
+        // links to children
+        .filter((link) => {
+          return link.source == task.taskID;
+        })
+        // child tasks
+        .map((link) => {
+          return selectedTaskTree.tasks.find((task) => {
+            return task.taskID == link.target;
+          });
+        })
+        .filter((task) => !!task)
+        // sort by time_created
+        .sort((a, b) => {
+          return (
+            (!!a ? a.time_created.getTime() : 0) -
+            (!!b ? b.time_created.getTime() : 0)
+          );
+        })
+        // use sort index as idxInSiblingGroup
+        .forEach((task, idx) => {
+          console.log("child idx of ", idx + 1, " task id: ", task?.taskID);
+          if (!task) {
+            console.log("skipping null task");
+            return;
+          }
+          const taskNode = idToTaskNode.get(task.taskID);
+          if (!taskNode) return;
+          console.log("setting node idx to ", idx + 1);
+          taskNode.idxInSiblingGroup = idx + 1;
+        });
+    });
+
     // update state with new nodes and links
     setNodes(newNodes);
     setLinks(newLinks);
@@ -265,6 +308,37 @@ const Dashboard: NextPage = () => {
     </div>
   );
 };
+
+/* 
+Create (React) and style (tailwind css) the components below. Make everything look nice together, on mobile and desktop (md:).
+
+The ControlArea component is a sidebar (on desktop; a topbar on mobile) that takes up 1/3rd of the screen on the left (or, on mobile, 1/5th of the screen on the top and is collapsible/expandable to the entire screen).
+
+The area below the dropdown select menu should take up the remainder of the available space and be scrollable. It is either a scrollable SelectedTask (if a task is selected) or a scrollable CreateNewTask. If neither is shown, then show a "Create Task" button prominently.
+
+CreateNewTask fields:
+- Input Command or Question (medium-height text field called input)
+- Initial Context Summary (medium-height text field called initialContextSummary)
+- Submit button (regular sized accent color button)
+- Cancel button next to the submit button, and also an "X" button to the upper right that closes the CreateNewTask area.
+
+SelectedTask fields:
+
+- an "X" button to the upper right to close the menu.
+
+- Task Type (medium-small text, centered, expect it to be under 20 characters)
+- Task Title (medium text, semibold, centered, expect it to be a couple sentences long)
+- Row with:
+  - Status icon (green dot for "success", a sky blue loading spinner for "running", a red dot for "paused" or "failed", a gray dot for "dead") and text "{status}"
+  - Depending on status, either a "Pause" "Unpause" button (regular sized accent color button) or neither
+- A "Pause Descendents" row
+- A "Restart Tree Here" row with an <Info /> that has hover text: "Restarting here will mark this task and its descendents as dead, re-run this task with the latest saved input and contextSummary (you can edit these fields down below), and undo any actions taken by ancestors after this task was created.\nWhen this task is complete, it will propogate back up to the root task like normal."
+
+- (the following are vertically expandable inputs that show a save button if changed from the initial props value that was passed to SelectedTask)
+ - Input Command or Question
+ - Initial Context Summary
+
+*/
 
 const ControlArea = (props: {
   rootTaskIDs: number[];
@@ -336,13 +410,107 @@ const ControlArea = (props: {
 };
 
 const CreateNewTask = () => {
-  // Implement create new task functionality here
-  return <div>Create New Task</div>;
+  const [input, setInput] = useState("");
+  const [initialContextSummary, setInitialContextSummary] = useState("");
+
+  const handleSubmit = () => {
+    // TODO: Implement create new task functionality
+  };
+
+  const handleCancel = () => {
+    setInput("");
+    setInitialContextSummary("");
+    // TODO: Implement closing the CreateNewTask area
+  };
+
+  return (
+    <div className="rounded bg-gray-800 p-4">
+      <button
+        onClick={handleCancel}
+        className="absolute right-2 top-2 text-gray-300 hover:text-white"
+      >
+        <XSquare className="h-4 w-4" />
+      </button>
+      <div className="mb-4">
+        <label className="mb-2 block text-sm text-gray-300">
+          Input Command or Question
+        </label>
+        <textarea
+          className="w-full resize-y rounded bg-gray-700 p-2 text-white"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+        />
+      </div>
+      <div className="mb-4">
+        <label className="mb-2 block text-sm text-gray-300">
+          Initial Context Summary
+        </label>
+        <textarea
+          className="w-full resize-y rounded bg-gray-700 p-2 text-white"
+          value={initialContextSummary}
+          onChange={(e) => setInitialContextSummary(e.target.value)}
+        />
+      </div>
+      <div className="flex justify-end">
+        <button
+          onClick={handleCancel}
+          className="mr-2 rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSubmit}
+          className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
+        >
+          Submit
+        </button>
+      </div>
+    </div>
+  );
 };
 
 const SelectedTask = () => {
-  // Implement selected task functionality here
-  return <div>Selected Task: </div>;
+  // TODO: Receive necessary props for displaying and interacting with the task
+
+  const handleClose = () => {
+    // TODO: Implement closing the SelectedTask area
+  };
+
+  return (
+    <div className="rounded bg-gray-800 p-4">
+      <button
+        onClick={handleClose}
+        className="right-2 top-2 text-gray-300 hover:text-white"
+      >
+        <XSquare className="h-8 w-8" />
+      </button>
+      <div className="mt-3 text-center">
+        <p className="text-sm text-gray-300">Task Type</p>
+        <h2 className="mb-4 text-lg font-semibold text-white">
+          Task Title: A couple of sentences long
+        </h2>
+      </div>
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center">
+          <div className="mr-2 h-4 w-4 rounded-full bg-green-500"></div>
+          <p className="text-sm text-gray-300">Success</p>
+        </div>
+        <button className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600">
+          Pause
+        </button>
+      </div>
+      <div className="mb-4">
+        <button className="w-full rounded bg-yellow-500 px-4 py-2 text-white hover:bg-yellow-600">
+          Pause Descendents
+        </button>
+      </div>
+      <div className="mb-4">
+        <button className="w-full rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600">
+          Restart Tree
+        </button>
+      </div>
+    </div>
+  );
 };
 
 const GraphArea = (props: {
@@ -387,40 +555,6 @@ const GraphArea = (props: {
     </div>
   );
 };
-
-/**
- * Replace the Dashboard NextJS React component, below, with 3 components: Dashboard, ControlArea, and GraphArea.
- * Use tailwind css and className property for styling. On md screens, ControlArea should be on the right, taking up 1/5 of the width of the screen, and GraphArea should fill the remaining 4/5ths on the left side. On smaller screens, position the ControlArea above the GraphArea.
- * The GraphArea must take up the vast majority of the screen, so small screens will need to have the option to collapse the ControlArea which is above the GraphArea.
- *
- * ControlArea has:
- * - A "Manage Training Data" link button and a UserButton component. These make up a mini header and are not important visually. When the button is pressed, redirect NextJS to "/training-data".
- * - More prominently, a dropdown box below with label "Root Task", and a list of task IDs which are stored in Dashboard's state and passed to ControlArea as a prop.
- * - The rest of the control area is a scrollable area with fields and button pertaining to the selectedTaskID, which is also stored in Dashboard's state and passed to ControlArea as a prop.
- * - If no selectedTaskID, then the control area should be empty except for a button to create a new root task. (This means we probably need two components for this area: one for a selected task and another for a new task creation template).
- *
- * CreateNewTask fields:
- * - Input Command or Question (medium-height text field)
- * - Submit button (regular sized accent color button)
- * - Cancel button next to the submit button, and also an "X" button to the upper right.
- *
- * SelectedTask fields:
- * - Task Title (medium text, semibold, centered, expect it to be a couple sentences long)
- * - Row with:
- * - - Status icon (green dot for completed, a loading spinner for running, a red dot for paused or failed) and text "Status: In Progress" or "Status: Complete"
- * - - A "Pause" button (regular sized accent color button)
- * - an "X" button to the upper right.
- * - Task data (big tall field with lots of json text in it). Warning icon if the user changed the data from the initial value that was passed to SelectedTask.
- * - Input Command or Question (medium-height text field) (same text as task title, but editable). Same warning icon as above.
- * - Save and Cancel buttons next to each other. Both disabled if the user has not changed the data field or the input field.
- * - "Context" heading
- * - Feedback field (medium-height text field) with explanation text below it that says, "Human feedback will be applied to agent context will create a new task"
- * - Add context button (regular sized, different accent color button)
- * - A Restart button with a warning that this will delete descendent tasks, set status of ancestor tasks to "awaiting_children", and re-run this task with the current input.
- * - A delete button.
- *
- * GraphArea: Just give it a dark background color like the rest of the components. Make sure all the colors go well together and fit a dark theme.
- */
 
 const Home: NextPage = () => {
   return (

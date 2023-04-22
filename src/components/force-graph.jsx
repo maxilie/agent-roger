@@ -39,23 +39,54 @@ const ForceGraph = (props) => {
     [highlightNodeIDs]
   );
 
+  const getLinkColor = (link) => {
+    if (link.targetNode.dead) {
+      return highlightNodeIDs.has(link.source)
+        ? "rgba(52, 58, 89, 1)"
+        : "rgba(52, 58, 89, 0.8)";
+    } else {
+      return link.targetNode.type == "ARBITRARY_TASK" &&
+        (highlightNodeIDs.has(link.source) || !highlightNodeIDs.size)
+        ? "rgba(48, 54, 82, 0.77)"
+        : "rgba(252, 254, 255, 0.1)";
+    }
+  };
+
   const getColor = (node) => {
     const borderColor = "rgba(255, 255, 255, 1)";
     const mutedBorderColor = "rgba(255, 255, 255, 0.3)";
-    let rgb =
+    const whiteText = "rgba(250, 250, 250, 0.9)";
+    const softText = "rgba(250, 250, 250, 0.7)";
+    const verySoftText = "rgba(250, 250, 250, 0.5)";
+    const darkText = "rgba(6, 10, 46, 1)";
+    const softDarkText = "rgba(13, 43, 6, 0.6)";
+
+    if (node.dead) {
+      return highlightNodeIDs.has(node.id)
+        ? ["rgba(29, 42, 66, 1)", "rgba(255, 255, 255, 0.7)", softText]
+        : ["rgba(29, 42, 66, 1)", mutedBorderColor, verySoftText];
+    }
+
+    let nodeRgb =
       node.status == "success" ? "rgba(119, 240, 101, " : "rgba(84, 132, 227, ";
-    if (node.status == "failed") rgb = "rgba(224, 76, 76, ";
-    if (node.status == "paused") rgb = "rgba(227, 170, 84, ";
-    if (node.parentID == -1) rgb = "rgba(242, 29, 207, ";
-    if (highlightNodeIDs.has(node.id)) return [rgb + "1)", borderColor];
+    let textColor = node.status == "success" ? darkText : whiteText;
+    if (node.status == "failed") nodeRgb = "rgba(250, 7, 7, ";
+    if (node.status == "paused") nodeRgb = "rgba(227, 170, 84, ";
+    if (node.parentID == -1) nodeRgb = "rgba(242, 29, 207, ";
+    if (highlightNodeIDs.has(node.id))
+      return [nodeRgb + "1)", borderColor, textColor];
     if (highlightNodeIDs.size > 0 && !highlightNodeIDs.has(node.id))
-      return [rgb + "0.05)", mutedBorderColor];
-    return [rgb + "1)", borderColor];
+      return [
+        nodeRgb + "0.05)",
+        mutedBorderColor,
+        textColor == whiteText ? verySoftText : softDarkText,
+      ];
+    return [nodeRgb + "1)", borderColor, textColor];
   };
 
   const paintNode = useCallback(
     (node, ctx) => {
-      const [color, borderColor] = getColor(node);
+      const [color, borderColor, textColor] = getColor(node);
       const r = NODE_REL_SIZE;
 
       // circle for base tasks
@@ -107,6 +138,17 @@ const ForceGraph = (props) => {
           squareR * 2
         );
       }
+
+      // paint text (node's ranking of when it was created relative to its siblings)
+      ctx.font = "2px sans-serif";
+      ctx.fillStyle = textColor;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(
+        node.idxInSiblingGroup,
+        node.x,
+        node.y + (node.type == "EXECUTE_FUNCTION" ? 0.6 : 0)
+      );
     },
     [highlightNodeIDs]
   );
@@ -126,14 +168,15 @@ const ForceGraph = (props) => {
       linkDirectionalParticleColor={() => "rgba(252, 254, 255, 0.77)"}
       linkDirectionalParticleSpeed={0.003}
       linkDirectionalParticles={1}
-      linkDirectionalParticleWidth={(link) => (isLinkHighlighted(link) ? 3 : 0)}
-      linkColor={(link) =>
-        link.targetNode.type == "ARBITRARY_TASK" &&
-        (highlightNodeIDs.has(link.source) || !highlightNodeIDs.size)
-          ? "rgba(252, 254, 255, 0.77)"
-          : "rgba(252, 254, 255, 0.3)"
+      linkDirectionalParticleWidth={(link) =>
+        isLinkHighlighted(link) && !link.targetNode.dead ? 3 : 0
       }
-      linkWidth={(link) => (link.targetNode.type == "ARBITRARY_TASK" ? 2 : 1)}
+      linkColor={(link) => getLinkColor(link)}
+      linkWidth={(link) =>
+        link.targetNode.type == "ARBITRARY_TASK" && !link.targetNode.dead
+          ? 2
+          : 1
+      }
       linkCurvature={0}
       d3AlphaMin={0.01}
       minZoom={0.7}
