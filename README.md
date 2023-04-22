@@ -54,6 +54,7 @@ However, there are key differences in Agent Roger:
 - [REQUIRES CUSTOMIZED INFERENCE] Develop an entirely new codebase in a specified folder.
 - [REQUIRES CUSTOMIZED INFERENCE] Process large amounts of information into files on your computer (spreadsheets, word documents, powerpoints, pdfs, images)
 - [REQUIRES CUSTOMIZED INFERENCE] Index your files, online accounts, messages, etc. and look for insights.
+- [REQUIRED CUSTOMIZED INFERENCE] Write code to your computer, deploy it using your command line, and test it until it works.
 
 ### The repo includes a dashboard:
 
