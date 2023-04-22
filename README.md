@@ -125,7 +125,7 @@ To change database schema:
 
 # Vector Database (Weaviate)
 Weaviate powers Agent Roger's context logic.
-- It stores documents as embedded vectors.
-- Weaviate seems to be a good solution because it allows for both vector and traditional keyword search, and it self-hosted locally on a decent CPU or in the cloud.
+- It stores documents as vector embeddings (lists of numbers) that represent semantic meaning.
+- Weaviate seems to be a good solution because it allows for both vector and traditional keyword search, and it can be self-hosted locally on a decent CPU or in the cloud.
 Switching to a different vector database:
-- You will need to alter a few components: new environment variables, new Tasks using new Stages
+- You will need to alter a few components: new environment variables, new Tasks using new Stages for retrieving and storing context, and possibly for embedding vectors (depending on the vector length setting of the database).
