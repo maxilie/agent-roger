@@ -20,8 +20,8 @@ However, there are key differences in Agent Roger:
 
 ### Serves as an application rather than a high-level framework, but is still modular enough to be expanded upon.
 
-- Both you, the human, and your AI can define custom tasks and sub-tasks using simple JSON text.
-- Each "stage" of a task's lifecycle has its own logic and variables, and it's simple to code new stages and use them to define a new task (as JSON).
+- Both you, the human, and your AI can define custom Tasks and sub-tasks using simple JSON text.
+- Each "Stage" of a Task's lifecycle has its own logic and variables, and it's simple to code new Stages and use them to define a new Task (as JSON).
 
 ### Uses a _dynamic task tree_ instead of a queue:
 
@@ -63,7 +63,7 @@ However, there are key differences in Agent Roger:
 
 # Getting Started
 
-The easiest way to get started is:
+The easiest way to get started is to:
 
 1. Clone the repo.
 2. Rename `.env.example` to `.env`
@@ -123,5 +123,8 @@ To change database schema:
 8. Once everything is working locally, go to the PlanetScale branch and create a new "deploy request", and then approve the deploy request to update the db main branch's schema.
 
 # Vector Database (Weaviate)
-
-The w
+Weaviate powers Agent Roger's context logic.
+- It stores documents as embedded vectors.
+- Weaviate seems to be a good solution because it allows for both vector and traditional keyword search, and it self-hosted locally on a decent CPU or in the cloud.
+Switching to a different vector database:
+- You will need to alter a few components: new environment variables, new Tasks using new Stages
