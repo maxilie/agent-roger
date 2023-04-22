@@ -67,14 +67,14 @@ However, there are key differences in Agent Roger:
 
 The easiest way to get started is to:
 
-1. Clone the repo.
-2. Rename `.env.example` to `.env`
+1. Fork the repo.
+2. Duplicate `.env.example` to a fresh `.env` (only in your local environment!).
 3. Fill in the environment variables in `.env`, using the Setup Details (below) as a reference.
 
 <details>
    <summary>Setup Details</summary>
 
-You will need the following (free) infra, most of which can be spun up using vendors' websites:
+You will need the following (free) infra, each of which can be spun up using vendors' websites:
 
 - new Vercel app pointing at your forked GitHub repo (vercel.com)
 - new PlanetScale MySQL database (planetscale.com)
@@ -85,7 +85,7 @@ You will need the following (free) infra, most of which can be spun up using ven
 Set environment variables:
 
 - Use `.env.example` as a template which lists the requried environment variables.
-- For local development, set correct environment variables in a new `.env`.
+- For local development, set correct environment variables in your `.env`.
 - For deployment, set correct environment variables in the Vercel dashboard under Settings -> Environment Variables (you can copy/paste from your `.env` file).
 
 NOTE: If you get a type error for `drizzle-kit` in `/src/drizzle.config.ts`, then you need to install `yarn add --dev drizzle-kit@db-push` or a later version.
