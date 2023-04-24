@@ -1,25 +1,22 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
-/agent-roger-task-runner/node_modules
-/.pnp
-.pnp.js
+/dashboard/node_modules
+/task-runner/node_modules
 
-# testing
-/coverage
+# task runner
+/task-runner/build
+/task-runner/dist
 
-# database
-/prisma/db.sqlite
-/prisma/db.sqlite-journal
 
 # next.js
-/.next/
-/out/
-next-env.d.ts
+/dashboard/.next/
+/dashboard/out/
+/dashboard/next-env.d.ts
 
 # production
 /build
+/dashboard/build
 
 # misc
 .DS_Store
@@ -31,13 +28,14 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# local env files
-# do not commit any .env files to git, except for the .env.example file. https://create.t3.gg/en/usage/env-variables#using-environment-variables
+# local env file
 .env
-.env*.local
+/dashboard/.env
+/task-runner/.env
 
 # vercel
 .vercel
+/dashboard/.vercel
 
 # typescript
 *.tsbuildinfo

@@ -84,6 +84,7 @@ The easiest way to get started is to:
 You will need the following (free) infra, each of which can be spun up using vendors' websites:
 
 - new Vercel app pointing at your forked GitHub repo (vercel.com)
+  - (in Vercel, make sure to set "Root Directory" to `dashboard`)
 - new PlanetScale MySQL database (planetscale.com)
 - new Upstache Redis database (upstache.com)
 - new Neo4J graph database (AuraDB)
@@ -102,10 +103,12 @@ NOTE: If you get a type error for `drizzle-kit` in `/src/drizzle.config.ts`, the
 # Deploying
 
 1. Push to GitHub to trigger new Vercel deployment of the dashboard.
+
+   - You can also run the dashboard on your local computer: `yarn --cwd dashboard dev`.
+
 2. To start the Weaviate vector database:
 
 ```
-cd agent-roger
 docker-compose down  # ensures database is saved to disk
 docker-compose rm -f  # if you want to rebuild from scratch
 docker-compose up  # OR, TO RUN IN BACKGROUND:  docker-compose up -d
@@ -114,7 +117,6 @@ docker-compose up  # OR, TO RUN IN BACKGROUND:  docker-compose up -d
 3. To start a task runner (can be run locally), make sure `.env` is correct and start the container:
 
 ```
-cd agent-roger  # docker context must be dashboard project root in order to share /src folder (contains database schema)
 docker build -t agent-roger-task-runner -f agent-roger-task-runner/Dockerfile . && docker run -it agent-roger-task-runner
 ```
 

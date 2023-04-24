@@ -30,9 +30,5 @@
     "**/*.mjs",
     "src/components/force-graph.jsx"
   ],
-  "exclude": [
-    "node_modules",
-    "agent-roger-task-runner",
-    "src/components/force-graph.jsx"
-  ]
+  "exclude": ["node_modules", "task-runner", "src/components/force-graph.jsx"]
 }

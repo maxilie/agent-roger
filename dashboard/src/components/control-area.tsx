@@ -269,11 +269,11 @@ const CreateNewTask: FC<{
     <div className="rounded bg-gray-800 p-4">
       <button
         onClick={props.cancelFn}
-        className="absolute right-2 top-2 text-gray-300 hover:text-white"
+        className="ml-auto block text-gray-300 hover:text-white"
       >
-        <XSquare className="h-4 w-4" />
+        <XSquare className="h-7 w-7" />
       </button>
-      <h2 className="mb-4 mt-3 text-lg font-bold text-white">New Root Task</h2>
+      <h2 className="mb-4 text-lg font-bold text-white">New Root Task</h2>
       <div className="mb-4">
         <label className="mb-2 block text-sm text-gray-300">
           Input Command or Question
@@ -378,19 +378,19 @@ const SelectedTask: FC<
       ? props.input
       : "Task With No Input Field";
   let status = "Running";
-  let statusIcon = <Loader className="h-8 w-8 text-blue-500" />;
+  let statusIcon = <Loader className="h-6 w-6 text-blue-500" />;
   if (props.dead) {
     status = "Dead";
-    statusIcon = <CircleSlashed className="h-8 w-8 text-slate-600" />;
+    statusIcon = <CircleSlashed className="h-6 w-6 text-pink-700" />;
   } else if (props.success) {
     status = "Success";
-    statusIcon = <CheckCircle2 className="h-8 w-8 text-green-500" />;
+    statusIcon = <CheckCircle2 className="h-6 w-6 text-green-500" />;
   } else if (props.success == false) {
     status = "Failed";
-    statusIcon = <AlertTriangle className="h-8 w-8 text-red-500" />;
+    statusIcon = <AlertTriangle className="h-6 w-6 text-red-500" />;
   } else if (props.paused) {
     status = "Paused";
-    statusIcon = <PauseCircle className="h-8 w-8 text-yellow-800" />;
+    statusIcon = <PauseCircle className="h-6 w-6 text-yellow-500" />;
   }
 
   return (
@@ -400,30 +400,44 @@ const SelectedTask: FC<
         <p className="text-sm text-gray-300">{props.taskType}</p>
       </div>
       <div className="mb-4 flex items-center justify-between align-middle">
-        <div className="flex flex-col">
-          <div className="flex flex-row align-middle">
-            <p className="text-md text-gray-50">#</p>
-            <p className="text-sm text-gray-200">{props.taskID}</p>
+        {/* id and date*/}
+        <div className="mb-3 mt-3 flex flex-col">
+          <div className="mb-1 flex flex-row align-middle">
+            <p className="text-sm text-gray-50">#</p>
+            <p className="ml-1 text-sm text-gray-200">{props.taskID}</p>
           </div>
-          <div className="flex flex-row justify-center">
-            <p className="text-md align-text-top text-gray-50">Created</p>
-            <p className="ml-2 align-text-bottom text-sm text-gray-50">
-              {props.timeCreated.toDateString()}
-            </p>
-          </div>
+          <p className="align-text-bottom text-sm text-gray-200">
+            {"Created  " + props.timeCreated.toDateString()}
+          </p>
         </div>
-        <div className="flex items-center">
-          <p className="text-md text-zinc-200">{status}</p>
+
+        {/* status */}
+        <div className="mr-1 flex items-center">
           {statusIcon}
+          <p className="text-md ml-2 text-zinc-200">{status}</p>
         </div>
       </div>
       <div className="mb-4 flex flex-row justify-between">
-        <button className="mr-4 w-full rounded bg-yellow-500 px-4 py-2 text-slate-50 hover:bg-yellow-600">
-          Pause
-        </button>
-        <button className="ml-4 w-full rounded bg-yellow-500 px-4 py-2 text-slate-50 hover:bg-yellow-600">
-          Pause Descendents
-        </button>
+        {!props.paused && (
+          <>
+            <button className="mr-4 w-full rounded bg-yellow-500 px-4 py-2 text-slate-50 hover:bg-yellow-600">
+              Pause
+            </button>
+            <button className="ml-4 w-full rounded bg-yellow-500 px-4 py-2 text-slate-50 hover:bg-yellow-600">
+              Pause Descendents
+            </button>
+          </>
+        )}
+        {props.paused && (
+          <>
+            <button className="mr-4 w-full rounded bg-blue-500 px-4 py-2 text-slate-50 hover:bg-blue-600">
+              Resume
+            </button>
+            <button className="ml-4 w-full rounded bg-blue-500 px-4 py-2 text-slate-50 hover:bg-blue-600">
+              Resume Descendents
+            </button>
+          </>
+        )}
       </div>
       <div className="mb-4 flex flex-col">
         <button className="w-full rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600">
