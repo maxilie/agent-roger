@@ -6,6 +6,7 @@
     "checkJs": true,
     "skipLibCheck": true,
     "strict": true,
+    "rootDir": "../",
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "esModuleInterop": true,
@@ -21,6 +22,11 @@
       "~/*": ["./src/*"]
     }
   },
+  "references": [
+    {
+      "path": "../agent-roger-core"
+    }
+  ],
   "include": [
     ".eslintrc.cjs",
     "next-env.d.ts",
@@ -30,5 +36,10 @@
     "**/*.mjs",
     "src/components/force-graph.jsx"
   ],
-  "exclude": ["node_modules", "task-runner", "src/components/force-graph.jsx"]
+  "exclude": [
+    "node_modules",
+    "task-runner",
+    "src/components/force-graph.jsx",
+    "../agent-roger-core"
+  ]
 }

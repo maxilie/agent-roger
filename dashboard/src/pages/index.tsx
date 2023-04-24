@@ -9,11 +9,14 @@ import { type TaskType, type TaskLink, type TaskNode } from "~/types";
 import dynamic from "next/dynamic";
 import { TASK_SCHEMA } from "~/types";
 import { z } from "zod";
+import { TEST_CONST } from "../../../agent-roger-core";
 import { ControlArea, type SelectedTaskProps } from "~/components/control-area";
 const ForceGraph = dynamic(
   () => import("~/components/force-graph").then((component) => component),
   { ssr: false }
 );
+
+const test1 = TEST_CONST + 1;
 
 /* 
 Throws z.ZodError if invalid task properties.

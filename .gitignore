@@ -3,6 +3,11 @@
 # dependencies
 /dashboard/node_modules
 /task-runner/node_modules
+agent-roger-core/node_modules
+
+# core package
+agent-roger-core/dist
+agent-roger-core/tsconfig.tsbuildinfo
 
 # task runner
 /task-runner/build
