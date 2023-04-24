@@ -9,9 +9,7 @@
     "outDir": "./dist",
     "skipLibCheck": true,
     "allowJs": true,
-    "checkJs": false,
-    "composite": true,
-    "declaration": true
+    "checkJs": false
   },
   "include": ["**/*", "eslintrc.cjs"],
   "exclude": ["node_modules", "build", "dist"]

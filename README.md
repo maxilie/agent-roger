@@ -102,6 +102,15 @@ NOTE: If you get a type error for `drizzle-kit` in `/src/drizzle.config.ts`, the
 
 # Deploying
 
+<details>
+   <summary>Local Deployment</summary>
+To run the dashboard on your local computer:
+```bash
+yarn dev
+```
+
+   </details>
+
 1. Push to GitHub to trigger new Vercel deployment of the dashboard.
 
    - You can also run the dashboard on your local computer: `yarn --cwd dashboard dev`.
@@ -143,3 +152,13 @@ Weaviate powers Agent Roger's context logic:
 Switching to a different vector database:
 
 - You will need to alter a few components: new environment variables, new Tasks using new Stages for retrieving and storing context, and possibly for embedding vectors (depending on the vector length setting of the database).
+
+# Development
+
+NOTE: We use yarn workspaces to configure the monorepo. You might need a Yarn "Editor SDK" in order for your IDE to properly recognize imports:
+
+- `yarn dlx @yarnpkg/sdks vscode`
+- Press ctrl+shift+p in a TypeScript file
+- Choose "Select TypeScript Version"
+- Pick "Use Workspace Version"
+- See here for more info: https://yarnpkg.com/getting-started/editor-sdks#vscode

@@ -1,27 +1,14 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/dashboard/node_modules
-/task-runner/node_modules
-agent-roger-core/node_modules
-
-# core package
-agent-roger-core/dist
-agent-roger-core/tsconfig.tsbuildinfo
-
-# task runner
-/task-runner/build
-/task-runner/dist
-
-
-# next.js
-/dashboard/.next/
-/dashboard/out/
-/dashboard/next-env.d.ts
-
-# production
-/build
-/dashboard/build
+packages/*/node_modules
+packages/*/dist
+packages/*/out
+packages/*/tsconfig.tsbuildinfo
+packages/*/next-env.d.ts
+packages/*/.next
+packages/*/build
+build
 
 # misc
 .DS_Store
@@ -33,14 +20,17 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# local env file
+# env vars
 .env
-/dashboard/.env
-/task-runner/.env
 
 # vercel
-.vercel
-/dashboard/.vercel
+packages/.vercel
 
-# typescript
-*.tsbuildinfo
+# yarn
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions

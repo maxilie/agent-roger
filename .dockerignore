@@ -9,3 +9,5 @@ dashboard
 .git
 README.md
 .env.example
+.pnp.*
+.yarn
