@@ -50,7 +50,7 @@
     "@typescript-eslint/parser": "^5.56.0",
     "autoprefixer": "^10.4.14",
     "dotenv": "^16.0.3",
-    "drizzle-kit": "latest",
+    "drizzle-kit": "^0.17.6",
     "eslint": "^8.36.0",
     "eslint-config-next": "^13.2.4",
     "postcss": "^8.4.21",
