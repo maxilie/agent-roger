@@ -84,7 +84,7 @@ The easiest way to get started is to:
 You will need the following (free) infra, each of which can be spun up using vendors' websites:
 
 - new Vercel app pointing at your forked GitHub repo (vercel.com)
-  - (in Vercel, make sure to set "Root Directory" to `dashboard`)
+  - (in Vercel, make sure to set "Root Directory" to `packages/dashboard`)
 - new PlanetScale MySQL database (planetscale.com)
 - new Upstache Redis database (upstache.com)
 - new Neo4J graph database (AuraDB)

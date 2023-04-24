@@ -2993,7 +2993,7 @@ __metadata:
     clsx: ^1.2.1
     d3: ~6.6.0
     dotenv: ^16.0.3
-    drizzle-kit: ^0.17.1-609a4f0
+    drizzle-kit: latest
     drizzle-orm: ^0.23.11
     env-cmd: ^10.1.0
     eslint: ^8.36.0
@@ -4634,7 +4634,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"drizzle-kit@npm:^0.17.1-609a4f0":
+"drizzle-kit@npm:latest":
   version: 0.17.6
   resolution: "drizzle-kit@npm:0.17.6"
   dependencies:
