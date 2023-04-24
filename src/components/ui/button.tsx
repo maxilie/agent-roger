@@ -24,6 +24,9 @@ const buttonVariants = cva(
         greenTag:
           "bg-green-800 hover:bg-green-50 rounded-3xl shadow-md shadow-zinc-500 border border-green-50 text-white hover:text-zinc-600",
         blue: "bg-sky-950 border-2 hover:bg-slate-800 hover:border-opacity-85 border-sky-400 text-gray-100",
+        green:
+          "bg-green-950 border-2 hover:bg-slate-800 hover:border-opacity-85 border-green-400 text-gray-100",
+        red: "bg-red-950 border-2 hover:bg-slate-800 hover:border-opacity-85 border-red-400 text-gray-100",
         subtle:
           "bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-100",
         ghost:

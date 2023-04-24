@@ -1,24 +1,80 @@
-/* eslint-disable @typescript-eslint/consistent-type-imports */
-import { SignedIn, SignedOut, SignIn, UserButton } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignIn } from "@clerk/nextjs";
 import { type NextPage } from "next";
 
 import { Button } from "~/components/ui/button";
-import { useRouter } from "next/router";
-import {
-  ArrowLeftCircle,
-  CheckCircle,
-  Loader2,
-  Webhook,
-  XSquare,
-} from "lucide-react";
+import { CheckCircle, Loader2, Webhook } from "lucide-react";
 import { type SetStateAction, useCallback, useEffect, useState } from "react";
-import { api, RouterOutputs } from "~/utils/api";
-import { TaskType, type TaskLink, type TaskNode } from "~/types";
+import { api, type RouterOutputs } from "~/utils/api";
+import { type TaskType, type TaskLink, type TaskNode } from "~/types";
 import dynamic from "next/dynamic";
+import { TASK_SCHEMA } from "~/types";
+import { z } from "zod";
+import { ControlArea, type SelectedTaskProps } from "~/components/control-area";
 const ForceGraph = dynamic(
   () => import("~/components/force-graph").then((component) => component),
   { ssr: false }
 );
+
+/* 
+Throws z.ZodError if invalid task properties.
+If a value is null, that property will be deleted in the database. To leave a property untouched, do not pass it in taskPtops.
+ */
+const validateAndParseTaskProps = (
+  taskProps: SelectedTaskProps
+): z.infer<typeof TASK_SCHEMA> => {
+  // init vars
+  const processedParams: {
+    [k: string]: string | number | Date | object | boolean | null;
+  } = {};
+  const filteredTaskProps: Partial<SelectedTaskProps> = {};
+
+  // build processedParams by visiting each taskProp
+  for (const key in taskProps) {
+    if (!key || !TASK_SCHEMA.shape.hasOwnProperty(key)) continue;
+    const fieldVal = taskProps[key as keyof SelectedTaskProps];
+
+    // determine whether string field (edited by user) should be converted to json
+    const valueSchema =
+      TASK_SCHEMA.shape[key as keyof z.infer<typeof TASK_SCHEMA>];
+    const isJsonField =
+      valueSchema instanceof z.ZodObject ||
+      (valueSchema instanceof z.ZodUnion &&
+        (
+          valueSchema as z.ZodUnion<[z.ZodObject<z.ZodRawShape>, z.ZodTypeAny]>
+        ).options.some((option: unknown) => option instanceof z.ZodObject));
+
+    // parse string field into json field
+    if (
+      isJsonField &&
+      typeof filteredTaskProps[key as keyof SelectedTaskProps] === "string"
+    ) {
+      let parsedJSON: unknown = null;
+      try {
+        parsedJSON = typeof fieldVal == "string" ? JSON.parse(fieldVal) : null;
+      } catch (err) {
+        // set invalid JSON to null
+        filteredTaskProps[key as keyof SelectedTaskProps] = undefined;
+      }
+      processedParams[key] = parsedJSON ?? null;
+    }
+
+    // if not json field, forward the param as is
+    else {
+      processedParams[key] = fieldVal;
+    }
+  }
+
+  // validate process params or throw a z.ZodError
+  return TASK_SCHEMA.parse(filteredTaskProps);
+};
+
+const getJSONString = (obj: object | null | unknown) => {
+  try {
+    return !obj ? "" : JSON.stringify(obj, null, 2);
+  } catch (err) {
+    return "";
+  }
+};
 
 const getNodeSize = (task: RouterOutputs["tasks"]["taskDatas"][0]) => {
   return task.taskType == "ROOT" ? 1 : 1;
@@ -49,52 +105,10 @@ const useWindowDimensions = (): WindowDimentions => {
   return windowDimensions;
 };
 
-const SaveFieldBtn = (props: {
-  isSaving: boolean;
-  dbValue: string;
-  localValue: string;
-  saveFn: () => Promise<void>;
-}) => {
-  if (
-    !props.isSaving &&
-    (props.localValue.length < 5 || props.localValue == props.dbValue)
-  ) {
-    return <></>;
-  }
-  return (
-    <Button
-      disabled={props.isSaving}
-      variant="subtle"
-      className="ml-3 font-mono text-lg text-emerald-900"
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises
-      onClick={async () => {
-        await props.saveFn();
-      }}
-    >
-      {props.isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-      {!props.isSaving && <CheckCircle className="mr-2 h-4 w-4" />}
-      Save
-    </Button>
-  );
-};
-
-// type Task = {
-//   taskID: number;
-//   awaitingChildren: boolean;
-//   paused: boolean;
-//   completed: boolean;
-//   success: boolean | undefined;
-//   taskType: string;
-//   input: object | undefined;
-//   internalData: object | undefined;
-//   resultData: object | undefined;
-// };
-
-// type TaskTreeItem = RouterOutputs["tasks"]["taskTree"];
-
-type TabValue = "tasks" | "training_data";
+type TaskTreeItem = RouterOutputs["tasks"]["taskTree"];
 
 const Dashboard: NextPage = () => {
+  const trpcUtils = api.useContext();
   const [selectedRootTaskID, setSelectedRootTaskID] = useState<
     number | undefined
   >(undefined);
@@ -103,6 +117,10 @@ const Dashboard: NextPage = () => {
   );
   const [nodes, setNodes] = useState<TaskNode[]>([]);
   const [links, setLinks] = useState<TaskLink[]>([]);
+  const [errorToastHeadline, setErrorToastHeadline] = useState<string>("");
+  const [errorToastDetails1, setErrorToastDetails1] = useState<string>("");
+  const [errorToastDetails2, setErrorToastDetails2] = useState<string>("");
+  const [showingErrorToast, setShowingErrorToast] = useState<boolean>(false);
 
   // fetch root task ids
   const {
@@ -155,12 +173,7 @@ const Dashboard: NextPage = () => {
         dead: task.dead,
         value: getNodeSize(task),
         level,
-        status: status as
-          | "success"
-          | "failed"
-          | "pending"
-          | "running"
-          | "paused",
+        status: status as "success" | "failed" | "running" | "paused" | "dead",
         type: task.taskType as TaskType,
         parentID,
         idxInSiblingGroup: 1,
@@ -242,11 +255,11 @@ const Dashboard: NextPage = () => {
           });
         })
         .filter((task) => !!task)
-        // sort by time_created
+        // sort by time created
         .sort((a, b) => {
           return (
-            (!!a ? a.time_created.getTime() : 0) -
-            (!!b ? b.time_created.getTime() : 0)
+            (!!a ? a.timeCreated.getTime() : 0) -
+            (!!b ? b.timeCreated.getTime() : 0)
           );
         })
         // use sort index as idxInSiblingGroup
@@ -273,6 +286,97 @@ const Dashboard: NextPage = () => {
     setSelectedTaskID(newTaskID as SetStateAction<number | undefined>);
   }, []);
 
+  // prevent rerendering the force graph by separating selectedNode data from selectedTaskTree
+  const { data: selectedTask } = api.tasks.taskData.useQuery({
+    taskID: selectedTaskID,
+  });
+
+  // save task db function
+  const saveTask = api.tasks.saveArbitraryTask.useMutation({
+    async onSuccess() {
+      await trpcUtils.tasks.taskData.invalidate();
+    },
+  });
+
+  // create new task db function
+  const createRootTask = api.tasks.createRootTask.useMutation({
+    async onSuccess() {
+      await trpcUtils.tasks.rootTasks.invalidate();
+    },
+  });
+
+  const saveTaskFn = async (taskProps: SelectedTaskProps) => {
+    try {
+      const params = validateAndParseTaskProps(taskProps);
+      await saveTask.mutateAsync(params);
+    } catch (error) {
+      // show error alert
+      setErrorToastHeadline("Task Saving Failed");
+      setErrorToastDetails1(
+        "Make sure all your JSON fields contain valid JSON, and check your connection."
+      );
+      if (error instanceof z.ZodError) {
+        setErrorToastDetails2(error.message);
+      } else {
+        setErrorToastDetails2("");
+      }
+      setShowingErrorToast(true);
+    }
+  };
+
+  // get props for children components
+  const input = getJSONString(selectedTask?.input);
+
+  const initialContextSummary = JSON.stringify(
+    selectedTask?.initialContextSummary
+  );
+  const semanticContextQueries = getJSONString(
+    selectedTask?.semanticContextQueries
+  );
+  const keywordContextQueries = getJSONString(
+    selectedTask?.keywordContextQueries
+  );
+  const semanticQueryEmbeddings = getJSONString(
+    selectedTask?.semanticQueryEmbeddings
+  );
+  const rawContext = getJSONString(selectedTask?.rawContext);
+  const contextSummary = getJSONString(selectedTask?.contextSummary);
+  const stepsAndSuccessCriteria = getJSONString(
+    selectedTask?.stepsAndSuccessCriteria
+  );
+  const subTasksSummary = selectedTask?.subTasksSummary
+    ? selectedTask?.subTasksSummary
+    : "";
+  const validationSummary = selectedTask?.validationSummary
+    ? selectedTask?.validationSummary
+    : "";
+  const runtimeErrors = getJSONString(selectedTask?.runtimeErrors);
+  const resultData = getJSONString(selectedTask?.resultData);
+  const stage0Data = getJSONString(selectedTask?.stage0Data);
+  const stage1Data = getJSONString(selectedTask?.stage1Data);
+  const stage2Data = getJSONString(selectedTask?.stage2Data);
+  const stage3Data = getJSONString(selectedTask?.stage3Data);
+  const stage4Data = getJSONString(selectedTask?.stage4Data);
+  const stage5Data = getJSONString(selectedTask?.stage5Data);
+  const stage6Data = getJSONString(selectedTask?.stage6Data);
+  const stage7Data = getJSONString(selectedTask?.stage7Data);
+  const stage8Data = getJSONString(selectedTask?.stage8Data);
+  const stage9Data = getJSONString(selectedTask?.stage9Data);
+  const stage10Data = getJSONString(selectedTask?.stage10Data);
+  const stage11Data = getJSONString(selectedTask?.stage11Data);
+  const stage12Data = getJSONString(selectedTask?.stage12Data);
+  const stage13Data = getJSONString(selectedTask?.stage13Data);
+  const stage14Data = getJSONString(selectedTask?.stage14Data);
+  const stage15Data = getJSONString(selectedTask?.stage15Data);
+  const stage16Data = getJSONString(selectedTask?.stage16Data);
+  const stage17Data = getJSONString(selectedTask?.stage17Data);
+  const stage18Data = getJSONString(selectedTask?.stage18Data);
+  const stage19Data = getJSONString(selectedTask?.stage19Data);
+  const stage20Data = getJSONString(selectedTask?.stage20Data);
+  const stage21Data = getJSONString(selectedTask?.stage21Data);
+  const stage22Data = getJSONString(selectedTask?.stage22Data);
+  const stage23Data = getJSONString(selectedTask?.stage23Data);
+
   // handle loading state
   if (isLoadingIDs) {
     return (
@@ -282,9 +386,22 @@ const Dashboard: NextPage = () => {
     );
   }
 
-  const selectedTask = selectedTaskID
-    ? selectedTaskTree?.tasks.find((task) => task.taskID == selectedTaskID)
-    : null;
+  const createNewTask = async (params: {
+    inputJSONString: string;
+    initialContextSummary: string;
+  }) => {
+    const { inputJSONString, initialContextSummary } = params;
+    let inputJSON: { [key: string]: any } | null = null;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      inputJSON = JSON.parse(inputJSONString);
+    } catch (error) {}
+    await createRootTask.mutateAsync({
+      ...(inputJSON ? { taskInput: inputJSON } : {}),
+      initialContextSummary: params.initialContextSummary,
+    });
+    setSelectedRootTaskID(undefined);
+  };
 
   return (
     <div className="block h-screen w-full">
@@ -292,8 +409,56 @@ const Dashboard: NextPage = () => {
         rootTaskIDs={rootTaskIDs || []}
         selectedRootTaskID={selectedRootTaskID}
         setSelectedRootTaskID={setSelectedRootTaskID}
+        createNewTaskFn={createNewTask}
+        // selected task props
+        saveTaskFn={saveTaskFn}
         taskID={selectedTask ? selectedTask.taskID : null}
-        taskInput={selectedTask ? selectedTask.input || null : null}
+        parentID={selectedTask?.parentID || null}
+        paused={selectedTask?.paused || null}
+        success={selectedTask?.success || null}
+        dead={selectedTask?.dead || null}
+        taskType={selectedTask?.taskType || ""}
+        input={input}
+        initialContextSummary={initialContextSummary}
+        generateSubTasksStageIdx={
+          selectedTask?.generateSubTasksStageIdx || null
+        }
+        timeCreated={selectedTask?.timeCreated || new Date(2000, 1, 1)}
+        timeLastUpdated={selectedTask?.timeLastUpdated || new Date(2000, 1, 1)}
+        semanticContextQueries={semanticContextQueries}
+        keywordContextQueries={keywordContextQueries}
+        semanticQueryEmbeddings={semanticQueryEmbeddings}
+        rawContext={rawContext}
+        contextSummary={contextSummary}
+        stepsAndSuccessCriteria={stepsAndSuccessCriteria}
+        subTasksSummary={subTasksSummary}
+        validationSummary={validationSummary}
+        resultData={resultData}
+        runtimeErrors={runtimeErrors}
+        stage0Data={stage0Data}
+        stage1Data={stage1Data}
+        stage2Data={stage2Data}
+        stage3Data={stage3Data}
+        stage4Data={stage4Data}
+        stage5Data={stage5Data}
+        stage6Data={stage6Data}
+        stage7Data={stage7Data}
+        stage8Data={stage8Data}
+        stage9Data={stage9Data}
+        stage10Data={stage10Data}
+        stage11Data={stage11Data}
+        stage12Data={stage12Data}
+        stage13Data={stage13Data}
+        stage14Data={stage14Data}
+        stage15Data={stage15Data}
+        stage16Data={stage16Data}
+        stage17Data={stage17Data}
+        stage18Data={stage18Data}
+        stage19Data={stage19Data}
+        stage20Data={stage20Data}
+        stage21Data={stage21Data}
+        stage22Data={stage22Data}
+        stage23Data={stage23Data}
       />
       <GraphArea
         isLoading={
@@ -305,210 +470,6 @@ const Dashboard: NextPage = () => {
           setSelectedTaskIDCallback as (val: number | null) => void
         }
       />
-    </div>
-  );
-};
-
-/* 
-Create (React) and style (tailwind css) the components below. Make everything look nice together, on mobile and desktop (md:).
-
-The ControlArea component is a sidebar (on desktop; a topbar on mobile) that takes up 1/3rd of the screen on the left (or, on mobile, 1/5th of the screen on the top and is collapsible/expandable to the entire screen).
-
-The area below the dropdown select menu should take up the remainder of the available space and be scrollable. It is either a scrollable SelectedTask (if a task is selected) or a scrollable CreateNewTask. If neither is shown, then show a "Create Task" button prominently.
-
-CreateNewTask fields:
-- Input Command or Question (medium-height text field called input)
-- Initial Context Summary (medium-height text field called initialContextSummary)
-- Submit button (regular sized accent color button)
-- Cancel button next to the submit button, and also an "X" button to the upper right that closes the CreateNewTask area.
-
-SelectedTask fields:
-
-- an "X" button to the upper right to close the menu.
-
-- Task Type (medium-small text, centered, expect it to be under 20 characters)
-- Task Title (medium text, semibold, centered, expect it to be a couple sentences long)
-- Row with:
-  - Status icon (green dot for "success", a sky blue loading spinner for "running", a red dot for "paused" or "failed", a gray dot for "dead") and text "{status}"
-  - Depending on status, either a "Pause" "Unpause" button (regular sized accent color button) or neither
-- A "Pause Descendents" row
-- A "Restart Tree Here" row with an <Info /> that has hover text: "Restarting here will mark this task and its descendents as dead, re-run this task with the latest saved input and contextSummary (you can edit these fields down below), and undo any actions taken by ancestors after this task was created.\nWhen this task is complete, it will propogate back up to the root task like normal."
-
-- (the following are vertically expandable inputs that show a save button if changed from the initial props value that was passed to SelectedTask)
- - Input Command or Question
- - Initial Context Summary
-
-*/
-
-const ControlArea = (props: {
-  rootTaskIDs: number[];
-  selectedRootTaskID: number | undefined;
-  setSelectedRootTaskID: (val: number) => void;
-  taskID: number | null;
-  taskInput: object | null;
-  // TODO taskStatus: string, restartTaskFn: () => void, etc.
-}) => {
-  const router = useRouter();
-
-  const handleManageTrainingData = () => {
-    router.push("/training-data").catch((err) => console.error(err));
-  };
-
-  return (
-    <div className="float-left block bg-gray-900 p-4 md:h-full md:w-1/3 md:border-r md:border-slate-800">
-      <div className="flex flex-col">
-        {/* Mini header */}
-        <div className="mb-4 flex justify-between">
-          <button
-            onClick={handleManageTrainingData}
-            className="flex flex-row text-sm text-gray-300 hover:text-white"
-          >
-            <ArrowLeftCircle className="my-auto mr-2 h-4 w-4" />
-            <p className="my-auto">Manage Training Data</p>
-          </button>
-          <UserButton />
-        </div>
-
-        {/* Root Task dropdown */}
-        <label htmlFor="rootTask" className="mb-2 text-sm text-gray-300">
-          Root Task
-        </label>
-        <select
-          id="rootTask"
-          className="mb-4 w-full rounded bg-gray-700 p-2 text-white"
-          value={props.selectedRootTaskID}
-          onChange={(e) => props.setSelectedRootTaskID(+e.target.value)}
-        >
-          <option value="">Select a task</option>
-          {props.rootTaskIDs.map((id) => (
-            <option key={id} value={id}>
-              {id}
-            </option>
-          ))}
-        </select>
-
-        {/* Options for selected task or new task */}
-        <div className="flex-1 overflow-y-auto">
-          {props.selectedRootTaskID ? (
-            <>
-              <SelectedTask // TODO taskTitle={}, taskStatus={}, restartTaskFn={}, etc.
-              />
-              <p className="mt-4 text-sm text-gray-300">
-                {props.taskInput
-                  ? JSON.stringify(props.taskInput, null, 2)
-                  : ""}
-              </p>
-            </>
-          ) : (
-            <CreateNewTask // TODO createNewTaskFn={}
-            />
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const CreateNewTask = () => {
-  const [input, setInput] = useState("");
-  const [initialContextSummary, setInitialContextSummary] = useState("");
-
-  const handleSubmit = () => {
-    // TODO: Implement create new task functionality
-  };
-
-  const handleCancel = () => {
-    setInput("");
-    setInitialContextSummary("");
-    // TODO: Implement closing the CreateNewTask area
-  };
-
-  return (
-    <div className="rounded bg-gray-800 p-4">
-      <button
-        onClick={handleCancel}
-        className="absolute right-2 top-2 text-gray-300 hover:text-white"
-      >
-        <XSquare className="h-4 w-4" />
-      </button>
-      <div className="mb-4">
-        <label className="mb-2 block text-sm text-gray-300">
-          Input Command or Question
-        </label>
-        <textarea
-          className="w-full resize-y rounded bg-gray-700 p-2 text-white"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-        />
-      </div>
-      <div className="mb-4">
-        <label className="mb-2 block text-sm text-gray-300">
-          Initial Context Summary
-        </label>
-        <textarea
-          className="w-full resize-y rounded bg-gray-700 p-2 text-white"
-          value={initialContextSummary}
-          onChange={(e) => setInitialContextSummary(e.target.value)}
-        />
-      </div>
-      <div className="flex justify-end">
-        <button
-          onClick={handleCancel}
-          className="mr-2 rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSubmit}
-          className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
-        >
-          Submit
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const SelectedTask = () => {
-  // TODO: Receive necessary props for displaying and interacting with the task
-
-  const handleClose = () => {
-    // TODO: Implement closing the SelectedTask area
-  };
-
-  return (
-    <div className="rounded bg-gray-800 p-4">
-      <button
-        onClick={handleClose}
-        className="right-2 top-2 text-gray-300 hover:text-white"
-      >
-        <XSquare className="h-8 w-8" />
-      </button>
-      <div className="mt-3 text-center">
-        <p className="text-sm text-gray-300">Task Type</p>
-        <h2 className="mb-4 text-lg font-semibold text-white">
-          Task Title: A couple of sentences long
-        </h2>
-      </div>
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center">
-          <div className="mr-2 h-4 w-4 rounded-full bg-green-500"></div>
-          <p className="text-sm text-gray-300">Success</p>
-        </div>
-        <button className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600">
-          Pause
-        </button>
-      </div>
-      <div className="mb-4">
-        <button className="w-full rounded bg-yellow-500 px-4 py-2 text-white hover:bg-yellow-600">
-          Pause Descendents
-        </button>
-      </div>
-      <div className="mb-4">
-        <button className="w-full rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600">
-          Restart Tree
-        </button>
-      </div>
     </div>
   );
 };

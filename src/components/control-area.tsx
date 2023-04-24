@@ -1,0 +1,452 @@
+import { UserButton } from "@clerk/nextjs";
+
+import { useRouter } from "next/router";
+import {
+  AlertTriangle,
+  ArrowLeftCircle,
+  CheckCircle,
+  CheckCircle2,
+  CircleSlashed,
+  Loader,
+  Loader2,
+  PauseCircle,
+  XSquare,
+} from "lucide-react";
+import { useState, type FC, useReducer } from "react";
+import { Button } from "~/components/ui/button";
+
+export type SelectedTaskProps = {
+  taskID: number | null;
+  parentID: number | null;
+  // task definition
+  taskType: string;
+  input: string;
+  initialContextSummary: string;
+  generateSubTasksStageIdx: number | null;
+  // status
+  paused: boolean | null;
+  success: boolean | null;
+  dead: boolean | null;
+  // timestamps
+  timeCreated: Date;
+  timeLastUpdated: Date;
+  // hard-coded fields
+  semanticContextQueries: string;
+  keywordContextQueries: string;
+  semanticQueryEmbeddings: string;
+  rawContext: string;
+  contextSummary: string;
+  stepsAndSuccessCriteria: string;
+  subTasksSummary: string;
+  validationSummary: string;
+  resultData: string;
+  runtimeErrors: string;
+  // stage data
+  stage0Data: string;
+  stage1Data: string;
+  stage2Data: string;
+  stage3Data: string;
+  stage4Data: string;
+  stage5Data: string;
+  stage6Data: string;
+  stage7Data: string;
+  stage8Data: string;
+  stage9Data: string;
+  stage10Data: string;
+  stage11Data: string;
+  stage12Data: string;
+  stage13Data: string;
+  stage14Data: string;
+  stage15Data: string;
+  stage16Data: string;
+  stage17Data: string;
+  stage18Data: string;
+  stage19Data: string;
+  stage20Data: string;
+  stage21Data: string;
+  stage22Data: string;
+  stage23Data: string;
+};
+
+const SaveFieldBtn = (props: {
+  isSaving: boolean;
+  dbValue: string;
+  localValue: string;
+  saveFn: () => Promise<void>;
+}) => {
+  if (
+    !props.isSaving &&
+    (props.localValue.length < 5 || props.localValue == props.dbValue)
+  ) {
+    return <></>;
+  }
+  return (
+    <Button
+      disabled={props.isSaving}
+      variant="subtle"
+      className="ml-3 font-mono text-lg text-emerald-900"
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
+      onClick={async () => {
+        await props.saveFn();
+      }}
+    >
+      {props.isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {!props.isSaving && <CheckCircle className="mr-2 h-4 w-4" />}
+      Save
+    </Button>
+  );
+};
+
+/* 
+Create (React) and style (tailwind css) the components below. Make everything look nice together, on mobile and desktop (md:).
+
+The ControlArea component is a sidebar (on desktop; a topbar on mobile) that takes up 1/3rd of the screen on the left (or, on mobile, 1/5th of the screen on the top and is collapsible/expandable to the entire screen).
+
+The area below the dropdown select menu should take up the remainder of the available space and be scrollable. It is either a scrollable SelectedTask (if a task is selected) or a scrollable CreateNewTask. If neither is shown, then show a "Create Task" button prominently.
+
+CreateNewTask fields:
+- Input Command or Question (medium-height text field called input)
+- Initial Context Summary (medium-height text field called initialContextSummary)
+- Submit button (regular sized accent color button)
+- Cancel button next to the submit button, and also an "X" button to the upper right that closes the CreateNewTask area.
+
+WARNING: This will overwrite the entire db row with your values. Empty fields will be ignored. To erase a JSON field, use {}.
+
+*/
+
+export const ControlArea = (
+  props: {
+    rootTaskIDs: number[];
+    selectedRootTaskID: number | undefined;
+    setSelectedRootTaskID: (val: number) => void;
+    createNewTaskFn: (params: {
+      inputJSONString: string;
+      initialContextSummary: string;
+    }) => Promise<void>;
+    saveTaskFn: (taskData: SelectedTaskProps) => Promise<void>;
+  } & SelectedTaskProps
+) => {
+  const router = useRouter();
+  const [creatingNewTask, toggleCreatingNewTask] = useReducer(
+    (val) => !val,
+    false
+  );
+
+  const handleManageTrainingData = () => {
+    router.push("/training-data").catch((err) => console.error(err));
+  };
+
+  return (
+    <div className="float-left block bg-gray-900 p-4 md:h-full md:w-1/3 md:border-r md:border-slate-800">
+      <div className="flex flex-col">
+        {/* Mini header */}
+        <div className="mb-4 flex justify-between">
+          <button
+            onClick={handleManageTrainingData}
+            className="flex flex-row text-sm text-gray-300 hover:text-white"
+          >
+            <ArrowLeftCircle className="my-auto mr-2 h-4 w-4" />
+            <p className="my-auto">Manage Training Data</p>
+          </button>
+          <UserButton />
+        </div>
+
+        {/* Root Task dropdown */}
+        <label htmlFor="rootTask" className="mb-2 text-sm text-gray-300">
+          Root Task
+        </label>
+        <select
+          id="rootTask"
+          className="mb-4 w-full rounded bg-gray-700 p-2 text-white"
+          value={props.selectedRootTaskID}
+          onChange={(e) => props.setSelectedRootTaskID(+e.target.value)}
+        >
+          <option value="">Select a task</option>
+          {props.rootTaskIDs.map((id) => (
+            <option key={id} value={id}>
+              {id}
+            </option>
+          ))}
+        </select>
+
+        {/* Create task button  */}
+        {!creatingNewTask && (
+          <button
+            onClick={toggleCreatingNewTask}
+            className="mb-10 rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
+          >
+            Create New Root Task
+          </button>
+        )}
+
+        {/*  */}
+        <div className="flex-1 overflow-y-auto">
+          <>
+            {!creatingNewTask && props.taskID && (
+              <SelectedTask
+                saveTaskFn={props.saveTaskFn}
+                taskID={props.taskID}
+                parentID={props.parentID}
+                paused={props.paused}
+                success={props.success}
+                dead={props.dead}
+                taskType={props.taskType}
+                input={props.input}
+                initialContextSummary={props.initialContextSummary}
+                generateSubTasksStageIdx={props.generateSubTasksStageIdx}
+                timeCreated={props.timeCreated}
+                timeLastUpdated={props.timeLastUpdated}
+                semanticContextQueries={props.semanticContextQueries}
+                keywordContextQueries={props.keywordContextQueries}
+                semanticQueryEmbeddings={props.semanticQueryEmbeddings}
+                rawContext={props.rawContext}
+                contextSummary={props.contextSummary}
+                stepsAndSuccessCriteria={props.stepsAndSuccessCriteria}
+                subTasksSummary={props.subTasksSummary}
+                validationSummary={props.validationSummary}
+                resultData={props.resultData}
+                runtimeErrors={props.runtimeErrors}
+                stage0Data={props.stage0Data}
+                stage1Data={props.stage1Data}
+                stage2Data={props.stage2Data}
+                stage3Data={props.stage3Data}
+                stage4Data={props.stage4Data}
+                stage5Data={props.stage5Data}
+                stage6Data={props.stage6Data}
+                stage7Data={props.stage7Data}
+                stage8Data={props.stage8Data}
+                stage9Data={props.stage9Data}
+                stage10Data={props.stage10Data}
+                stage11Data={props.stage11Data}
+                stage12Data={props.stage12Data}
+                stage13Data={props.stage13Data}
+                stage14Data={props.stage14Data}
+                stage15Data={props.stage15Data}
+                stage16Data={props.stage16Data}
+                stage17Data={props.stage17Data}
+                stage18Data={props.stage18Data}
+                stage19Data={props.stage19Data}
+                stage20Data={props.stage20Data}
+                stage21Data={props.stage21Data}
+                stage22Data={props.stage22Data}
+                stage23Data={props.stage23Data}
+              />
+            )}
+            {creatingNewTask && (
+              <CreateNewTask
+                createNewTaskFn={props.createNewTaskFn}
+                cancelFn={toggleCreatingNewTask}
+              />
+            )}
+          </>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CreateNewTask: FC<{
+  createNewTaskFn: (params: {
+    inputJSONString: string;
+    initialContextSummary: string;
+  }) => Promise<void>;
+  cancelFn: () => void;
+}> = (props) => {
+  const [input, setInput] = useState("");
+  const [initialContextSummary, setInitialContextSummary] = useState("");
+
+  const handleSubmit = async () => {
+    await props.createNewTaskFn({
+      inputJSONString: input,
+      initialContextSummary,
+    });
+    setInput("");
+    setInitialContextSummary("");
+    props.cancelFn();
+  };
+
+  return (
+    <div className="rounded bg-gray-800 p-4">
+      <button
+        onClick={props.cancelFn}
+        className="absolute right-2 top-2 text-gray-300 hover:text-white"
+      >
+        <XSquare className="h-4 w-4" />
+      </button>
+      <h2 className="mb-4 mt-3 text-lg font-bold text-white">New Root Task</h2>
+      <div className="mb-4">
+        <label className="mb-2 block text-sm text-gray-300">
+          Input Command or Question
+        </label>
+        <textarea
+          className="w-full resize-y rounded bg-gray-700 p-2 text-white"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+        />
+      </div>
+      <div className="mb-4">
+        <label className="mb-2 block text-sm text-gray-300">
+          Initial Context Summary (optional)
+        </label>
+        <textarea
+          className="w-full resize-y rounded bg-gray-700 p-2 text-white"
+          value={initialContextSummary}
+          onChange={(e) => setInitialContextSummary(e.target.value)}
+        />
+      </div>
+      <div className="flex justify-end">
+        <Button
+          variant={"red"}
+          onClick={props.cancelFn}
+          className="mr-3 rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600"
+        >
+          Cancel
+        </Button>
+        <Button
+          disabled={input.length < 5}
+          variant={"green"}
+          // eslint-disable-next-line @typescript-eslint/no-misused-promises
+          onClick={() => handleSubmit()}
+          className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
+        >
+          Submit
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+const SelectedTask: FC<
+  {
+    saveTaskFn: (taskProps: SelectedTaskProps) => Promise<void>;
+  } & SelectedTaskProps
+> = (props) => {
+  const [userInput, setUserInput] = useState(props.input);
+  const [userInitialContextSummary, setUserInitialContextSummary] = useState(
+    props.initialContextSummary
+  );
+  const [userSemanticContextQueries, setUserSemanticContextQueries] = useState(
+    props.semanticContextQueries
+  );
+  const [userKeywordContextQueries, setUserKeywordContextQueries] = useState(
+    props.keywordContextQueries
+  );
+  const [userSemanticQueryEmbeddings, setUserSemanticQueryEmbeddings] =
+    useState(props.semanticQueryEmbeddings);
+  const [userRawContext, setUserRawContext] = useState(props.rawContext);
+  const [userContextSummary, setUserContextSummary] = useState(
+    props.contextSummary
+  );
+  const [userStepsAndSuccessCriteria, setUserStepsAndSuccessCriteria] =
+    useState(props.stepsAndSuccessCriteria);
+  const [userSubTasksSummary, setUserSubTasksSummary] = useState(
+    props.subTasksSummary
+  );
+  const [userValidationSummary, setUserValidationSummary] = useState(
+    props.validationSummary
+  );
+  const [userResultData, setUserResultData] = useState(props.resultData);
+  const [userStage0Data, setUserStage0Data] = useState(props.stage0Data);
+  const [userStage1Data, setUserStage1Data] = useState(props.stage1Data);
+  const [userStage2Data, setUserStage2Data] = useState(props.stage2Data);
+  const [userStage3Data, setUserStage3Data] = useState(props.stage3Data);
+  const [userStage4Data, setUserStage4Data] = useState(props.stage4Data);
+  const [userStage5Data, setUserStage5Data] = useState(props.stage5Data);
+  const [userStage6Data, setUserStage6Data] = useState(props.stage6Data);
+  const [userStage7Data, setUserStage7Data] = useState(props.stage7Data);
+  const [userStage8Data, setUserStage8Data] = useState(props.stage8Data);
+  const [userStage9Data, setUserStage9Data] = useState(props.stage9Data);
+  const [userStage10Data, setUserStage10Data] = useState(props.stage10Data);
+  const [userStage11Data, setUserStage11Data] = useState(props.stage11Data);
+  const [userStage12Data, setUserStage12Data] = useState(props.stage12Data);
+  const [userStage13Data, setUserStage13Data] = useState(props.stage13Data);
+  const [userStage14Data, setUserStage14Data] = useState(props.stage14Data);
+  const [userStage15Data, setUserStage15Data] = useState(props.stage15Data);
+  const [userStage16Data, setUserStage16Data] = useState(props.stage16Data);
+  const [userStage17Data, setUserStage17Data] = useState(props.stage17Data);
+  const [userStage18Data, setUserStage18Data] = useState(props.stage18Data);
+  const [userStage19Data, setUserStage19Data] = useState(props.stage19Data);
+  const [userStage20Data, setUserStage20Data] = useState(props.stage20Data);
+  const [userStage21Data, setUserStage21Data] = useState(props.stage21Data);
+  const [userStage22Data, setUserStage22Data] = useState(props.stage22Data);
+  const [userStage23Data, setUserStage23Data] = useState(props.stage23Data);
+
+  const taskTitle: string =
+    props.input && props.input.length > 20
+      ? props.input.split(" ").slice(0, 8).join(" ") + "..."
+      : props.input
+      ? props.input
+      : "Task With No Input Field";
+  let status = "Running";
+  let statusIcon = <Loader className="h-8 w-8 text-blue-500" />;
+  if (props.dead) {
+    status = "Dead";
+    statusIcon = <CircleSlashed className="h-8 w-8 text-slate-600" />;
+  } else if (props.success) {
+    status = "Success";
+    statusIcon = <CheckCircle2 className="h-8 w-8 text-green-500" />;
+  } else if (props.success == false) {
+    status = "Failed";
+    statusIcon = <AlertTriangle className="h-8 w-8 text-red-500" />;
+  } else if (props.paused) {
+    status = "Paused";
+    statusIcon = <PauseCircle className="h-8 w-8 text-yellow-800" />;
+  }
+
+  return (
+    <div className="rounded bg-gray-800 p-4">
+      <div className="mt-3 text-center">
+        <h2 className="mb-4 text-lg font-semibold text-white">{taskTitle}</h2>
+        <p className="text-sm text-gray-300">{props.taskType}</p>
+      </div>
+      <div className="mb-4 flex items-center justify-between align-middle">
+        <div className="flex flex-col">
+          <div className="flex flex-row align-middle">
+            <p className="text-md text-gray-50">#</p>
+            <p className="text-sm text-gray-200">{props.taskID}</p>
+          </div>
+          <div className="flex flex-row justify-center">
+            <p className="text-md align-text-top text-gray-50">Created</p>
+            <p className="ml-2 align-text-bottom text-sm text-gray-50">
+              {props.timeCreated.toDateString()}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center">
+          <p className="text-md text-zinc-200">{status}</p>
+          {statusIcon}
+        </div>
+      </div>
+      <div className="mb-4 flex flex-row justify-between">
+        <button className="mr-4 w-full rounded bg-yellow-500 px-4 py-2 text-slate-50 hover:bg-yellow-600">
+          Pause
+        </button>
+        <button className="ml-4 w-full rounded bg-yellow-500 px-4 py-2 text-slate-50 hover:bg-yellow-600">
+          Pause Descendents
+        </button>
+      </div>
+      <div className="mb-4 flex flex-col">
+        <button className="w-full rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600">
+          Restart Tree Here
+        </button>
+        <p className="mb-1 mt-3 text-sm text-slate-200">
+          Restarting here will:
+        </p>
+        <p className=" text-sm text-slate-200">
+          1) Mark this task and its descendents as dead.
+        </p>
+        <p className=" text-sm text-slate-200">
+          2) Re-run this task with the latest saved input and contextSummary
+          (you can edit these fields down below).
+        </p>
+        <p className="text-sm text-slate-200">
+          3) Undo any actions taken by ancestors after this task was created.
+        </p>
+        <p className=" mt-1 text-sm text-slate-200">
+          When this task is complete, it will propogate back up to the root task
+          like normal.
+        </p>
+      </div>
+    </div>
+  );
+};

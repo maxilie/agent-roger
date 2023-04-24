@@ -5,7 +5,7 @@ import {
   boolean,
   json,
   int,
-  date,
+  timestamp,
 } from "drizzle-orm/mysql-core";
 
 /**
@@ -21,15 +21,14 @@ export const tasks = mysqlTable("tasks", {
   // root task or sub-task
   parentID: int("parent_id"),
   // timestamps
-  time_created: date("time_created").notNull(),
-  time_last_updated: date("time_last_updated").notNull(),
+  timeCreated: timestamp("time_created").notNull().defaultNow(),
+  timeLastUpdated: timestamp("time_last_updated").notNull().defaultNow(),
   // task definition
   taskType: text("task_type").notNull(),
   input: json("input"),
   initialContextSummary: text("initial_context"),
   generateSubTasksStageIdx: int("generate_sub_tasks_stage_idx"),
   // data from intermediary stages of task lifecycle
-  internalData: json("task_data"),
   semanticContextQueries: json("semantic_context_queries"),
   keywordContextQueries: json("keyword_context_queries"),
   semanticQueryEmbeddings: json("semantic_query_embeddings"),
@@ -41,6 +40,7 @@ export const tasks = mysqlTable("tasks", {
   subTasksSummary: text("sub_tasks_summary"),
   validationSummary: text("validation_summary"),
   resultData: json("result_data"),
+  runtimeErrors: json("runtime_errors"),
   stage0Data: json("stage_0_data"),
   stage1Data: json("stage_1_data"),
   stage2Data: json("stage_2_data"),

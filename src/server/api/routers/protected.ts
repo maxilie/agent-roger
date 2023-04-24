@@ -1,14 +1,16 @@
-import { desc, inArray, isNull } from "drizzle-orm";
+import { desc, inArray, isNull, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "~/db/db";
 import { tasks } from "~/db/schema";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import * as neo4j from "neo4j-driver";
 import { env } from "~/env.mjs";
+import { CREATE_CHILD_TASK_SCHEMA, TASK_SCHEMA } from "~/types";
 
 type Neo4JTask = {
   properties: {
     taskID: neo4j.Integer;
+    isDead: string;
   };
 };
 
@@ -22,9 +24,23 @@ export const tasksRouter = createTRPCRouter({
         .select({ taskID: tasks.taskID })
         .from(tasks)
         .where(isNull(tasks.parentID))
-        .orderBy(desc(tasks.time_last_updated))
+        .orderBy(desc(tasks.timeLastUpdated))
         .limit(input.n);
       return result.map((task) => task.taskID);
+    }),
+
+  // returns task data for the specified ID
+  taskData: protectedProcedure
+    .input(z.object({ taskID: z.number().nullish() }))
+    .query(async ({ input }) => {
+      if (!!!input.taskID) {
+        return null;
+      }
+      const result = await db
+        .select()
+        .from(tasks)
+        .where(eq(tasks.taskID, input.taskID));
+      return result ? result[0] : null;
     }),
 
   // returns task data for the specified IDs
@@ -36,6 +52,174 @@ export const tasksRouter = createTRPCRouter({
         .from(tasks)
         .where(inArray(tasks.taskID, input.taskIDs));
       return result || [];
+    }),
+
+  // updates an existing task's data in SQL and Neo4J
+  // any field left unspecified in the input will be DELETED
+  saveArbitraryTask: protectedProcedure
+    .input(TASK_SCHEMA)
+    .mutation(async ({ input }) => {
+      // sql
+      await db
+        .update(tasks)
+        .set({
+          ...input,
+        })
+        .where(eq(tasks.taskID, input.taskID));
+      
+      // neo4j
+      let neo4jDriver: neo4j.Driver | undefined = undefined;
+      let neo4jSession: neo4j.Session | undefined = undefined;
+      try {
+        neo4jDriver = neo4j.driver(
+          env.NEO4J_URI,
+          neo4j.auth.basic(env.NEO4J_USER, env.NEO4J_PASS)
+        );
+        neo4jSession = neo4jDriver.session();
+
+        // execute query
+        await neo4jSession.run<{
+          source: Neo4JTask;
+          target: Neo4JTask;
+          relation: object;
+        }>("MATCH (task:Task {taskID: idParam,}) SET task.isDead = $isDeadParam", {
+          idParam: input.taskID,
+          isDeadParam: input.dead ? "true" : "false",
+        });
+        // handle errors
+      } catch (error) {
+        console.error(
+          "FAILED to update task in Neo4J (id:  ",input.taskID,")");
+        console.error(error);
+        try {
+          await neo4jSession?.close();
+          await neo4jDriver?.close();
+        } finally {
+        }
+      }
+    }),
+
+  // creates a new root task
+  createRootTask: protectedProcedure
+    .input(
+      z.object({
+        taskInput: z.object({}).nullish(),
+        initialContextSummary: z.string().nullish(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      // sql
+      const newTaskID: string = (
+        await db.insert(tasks).values({
+          taskType: "ROOT",
+          ...(input.taskInput ? { input: input.taskInput } : {}),
+          ...(input.initialContextSummary
+            ? { initialContextSummary: input.initialContextSummary }
+            : {}),
+        })
+      ).insertId;
+      if (newTaskID.length == 0) {
+        console.error(
+          "Failed to create new root task in SQL with input query: ",
+          JSON.stringify(input)
+        );
+        return null;
+      }
+
+      // neo4j
+      let neo4jDriver: neo4j.Driver | undefined = undefined;
+      let neo4jSession: neo4j.Session | undefined = undefined;
+      try {
+        neo4jDriver = neo4j.driver(
+          env.NEO4J_URI,
+          neo4j.auth.basic(env.NEO4J_USER, env.NEO4J_PASS)
+        );
+        neo4jSession = neo4jDriver.session();
+
+        // execute query
+        await neo4jSession.run<{
+          source: Neo4JTask;
+          target: Neo4JTask;
+          relation: object;
+        }>("CREATE (task:Task {taskID: idParam, isDead:'false'})", {
+          idParam: +newTaskID,
+        });
+        // handle errors
+      } catch (error) {
+        console.error(
+          "FAILED to create new root task in Neo4J (id:  ",
+          newTaskID,
+          "). Delete the failed task in SQL (not urgent)."
+        );
+        console.error(error);
+        try {
+          await neo4jSession?.close();
+          await neo4jDriver?.close();
+        } finally {
+          return null
+        }
+      }
+        return +newTaskID
+    }),
+
+  // creates a new child task
+  createChildTask: protectedProcedure
+    .input(CREATE_CHILD_TASK_SCHEMA)
+    .mutation(async ({ input }) => {
+      // sql
+      const newTaskID: string = (
+        await db.insert(tasks).values({
+          ...input,
+        })
+      ).insertId;
+      if (newTaskID.length == 0) {
+        console.error(
+          "Failed to create new child task in SQL with input query: ",
+          JSON.stringify(input)
+        );
+        return null;
+      }
+
+      // neo4j
+      let neo4jDriver: neo4j.Driver | undefined = undefined;
+      let neo4jSession: neo4j.Session | undefined = undefined;
+      try {
+        neo4jDriver = neo4j.driver(
+          env.NEO4J_URI,
+          neo4j.auth.basic(env.NEO4J_USER, env.NEO4J_PASS)
+        );
+        neo4jSession = neo4jDriver.session();
+
+        // execute query
+        await neo4jSession.run<{
+          source: Neo4JTask;
+          target: Neo4JTask;
+          relation: object;
+        }>(
+          "MATCH (parentTask:Task {taskID: $parentTaskIDParam}) \
+          CREATE (newTask:Task {taskID: $newTaskIDParam, isDead:'false'}) \
+          CREATE (parentTask)-[:SPAWNED]->(newTask)",
+          {
+            parentTaskIDParam: input.parentID,
+            newTaskIDParam: +newTaskID,
+          }
+        );
+        // handle errors
+      } catch (error) {
+        console.error(
+          "FAILED to create new child task in Neo4J (id:  ",
+          newTaskID,
+          "). Delete the failed task in SQL to avoid orphaned nodes."
+        );
+        console.error(error);
+        try {
+          await neo4jSession?.close();
+          await neo4jDriver?.close();
+        } finally {
+          return null;
+        }
+      }
+      return +newTaskID;
     }),
 
   // returns nodeIDs=[rootTaskID, ...descendentIDs], links[{source, target}], tasks: Task[]
