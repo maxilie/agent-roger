@@ -2993,7 +2993,7 @@ __metadata:
     clsx: ^1.2.1
     d3: ~6.6.0
     dotenv: ^16.0.3
-    drizzle-kit: ^0.17.6
+    drizzle-kit: 0.17.1-5df459e
     drizzle-orm: ^0.23.11
     env-cmd: ^10.1.0
     eslint: ^8.36.0
@@ -4634,9 +4634,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"drizzle-kit@npm:^0.17.6":
-  version: 0.17.6
-  resolution: "drizzle-kit@npm:0.17.6"
+"drizzle-kit@npm:0.17.1-5df459e":
+  version: 0.17.1-5df459e
+  resolution: "drizzle-kit@npm:0.17.1-5df459e"
   dependencies:
     camelcase: ^7.0.1
     chalk: ^5.2.0
@@ -4646,10 +4646,11 @@ __metadata:
     glob: ^8.1.0
     hanji: ^0.0.5
     json-diff: 0.9.0
+    minimatch: ^7.4.3
     zod: ^3.20.2
   bin:
     drizzle-kit: index.js
-  checksum: 1da41a857e3e331ec0a2903eab2824647e500da0cde2d96387d062ae60d7f7e88fd10d23bee63777d94a03acf0823df106ec5f9cafececed58e1647cd2da574d
+  checksum: 93a237f8009c78707d243f038fd99795d288af8925e836d739aee8ed0ff0cf8127955d78f2a5adef80a0aa49b711a7fb4759834bb21146e94209e9625c2f14a0
   languageName: node
   linkType: hard
 
@@ -7047,6 +7048,15 @@ __metadata:
   dependencies:
     brace-expansion: ^2.0.1
   checksum: 7564208ef81d7065a370f788d337cd80a689e981042cb9a1d0e6580b6c6a8c9279eba80010516e258835a988363f99f54a6f711a315089b8b42694f5da9d0d77
+  languageName: node
+  linkType: hard
+
+"minimatch@npm:^7.4.3":
+  version: 7.4.6
+  resolution: "minimatch@npm:7.4.6"
+  dependencies:
+    brace-expansion: ^2.0.1
+  checksum: 1a6c8d22618df9d2a88aabeef1de5622eb7b558e9f8010be791cb6b0fa6e102d39b11c28d75b855a1e377b12edc7db8ff12a99c20353441caa6a05e78deb5da9
   languageName: node
   linkType: hard
 
