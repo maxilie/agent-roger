@@ -5,10 +5,16 @@ import { api } from "~/utils/api";
 import "~/styles/globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "next-themes";
+import { dark } from "@clerk/themes";
 
 const MyApp: AppType = ({ Component, pageProps }) => {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      appearance={{
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        baseTheme: dark,
+      }}
+    >
       <ThemeProvider defaultTheme="dark" attribute="class">
         <Component {...pageProps} />
       </ThemeProvider>

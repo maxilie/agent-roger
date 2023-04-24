@@ -1405,7 +1405,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@clerk/themes@npm:^1.6.1":
+"@clerk/themes@npm:^1.6.3":
   version: 1.6.3
   resolution: "@clerk/themes@npm:1.6.3"
   peerDependencies:
@@ -2971,7 +2971,7 @@ __metadata:
   resolution: "agent-roger-dashboard@workspace:packages/dashboard"
   dependencies:
     "@clerk/nextjs": ^4.16.0
-    "@clerk/themes": ^1.6.1
+    "@clerk/themes": ^1.6.3
     "@planetscale/database": ^1.7.0
     "@radix-ui/react-accordion": ^1.1.1
     "@radix-ui/react-tabs": ^1.0.3
