@@ -14,6 +14,22 @@ lib/*/build
 lib/*/tsconfig.tsbuildinfo
 build
 
+# weaviate-ts-client
+libs/weaviate-ts-client/.DS_Store
+libs/weaviate-ts-client/dist/
+libs/weaviate-ts-client/coverage/
+libs/weaviate-ts-client/node_modules/
+libs/weaviate-ts-client/config.yaml
+libs/weaviate-ts-client/lib.js
+libs/weaviate-ts-client/weaviate-data/
+libs/weaviate-ts-client/.vscode/
+libs/weaviate-ts-client/.idea/
+libs/weaviate-ts-client/*.tgz
+libs/weaviate-ts-client/.npmrc
+libs/weaviate-ts-client/.eslintcache
+!libs/weaviate-ts-client/package.json
+
+
 # misc
 .DS_Store
 *.pem
