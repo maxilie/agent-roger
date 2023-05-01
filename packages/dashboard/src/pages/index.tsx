@@ -5,9 +5,8 @@ import { Button } from "~/components/ui/button";
 import { CheckCircle, Loader2, Webhook } from "lucide-react";
 import { type SetStateAction, useCallback, useEffect, useState } from "react";
 import { api, type RouterOutputs } from "~/utils/api";
-import { type TaskType, type TaskLink, type TaskNode } from "~/types";
+import { type TaskType } from "agent-roger-core";
 import dynamic from "next/dynamic";
-import { TASK_SCHEMA } from "~/types";
 import { z } from "zod";
 // import { TEST_CONST } from "../../../agent-roger-core";
 import { ControlArea, type SelectedTaskProps } from "~/components/control-area";
@@ -16,7 +15,26 @@ const ForceGraph = dynamic(
   { ssr: false }
 );
 
-// const test1 = TEST_CONST + 1;
+/* A d3 node */
+export type TaskNode = {
+  id: number;
+  name: string;
+  value: number;
+  level: number;
+  status: "running" | "success" | "failed" | "paused" | "dead";
+  dead: boolean;
+  type: TaskType;
+  parentID: number;
+  idxInSiblingGroup: number;
+  descendentIDs: number[];
+};
+
+/* A d3 link */
+export type TaskLink = {
+  source: number;
+  target: number;
+  targetNode: TaskNode;
+};
 
 /* 
 Throws z.ZodError if invalid task properties.
@@ -108,7 +126,7 @@ const useWindowDimensions = (): WindowDimentions => {
   return windowDimensions;
 };
 
-type TaskTreeItem = RouterOutputs["tasks"]["taskTree"];
+type TaskTreeItem = RouterOutputs["tasks"]["getTaskTree"];
 
 const Dashboard: NextPage = () => {
   const trpcUtils = api.useContext();
@@ -144,7 +162,7 @@ const Dashboard: NextPage = () => {
     isLoading: isLoadingTree,
     isError: failedLoadingTree,
     data: selectedTaskTree,
-  } = api.tasks.taskTree.useQuery({
+  } = api.tasks.getTaskTree.useQuery({
     rootTaskID: selectedRootTaskID,
   });
 
@@ -290,14 +308,14 @@ const Dashboard: NextPage = () => {
   }, []);
 
   // prevent rerendering the force graph by separating selectedNode data from selectedTaskTree
-  const { data: selectedTask } = api.tasks.taskData.useQuery({
+  const { data: selectedTask } = api.tasks.getTaskData.useQuery({
     taskID: selectedTaskID,
   });
 
   // save task db function
-  const saveTask = api.tasks.saveArbitraryTask.useMutation({
+  const saveTask = api.tasks.saveTaskData.useMutation({
     async onSuccess() {
-      await trpcUtils.tasks.taskData.invalidate();
+      await trpcUtils.tasks.getTaskData.invalidate();
     },
   });
 

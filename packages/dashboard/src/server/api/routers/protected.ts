@@ -1,292 +1,78 @@
-import { desc, inArray, isNull, eq } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "~/db/db";
-import { tasks } from "~/db/schema";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-import * as neo4j from "neo4j-driver";
-import { env } from "~/env.mjs";
-import { CREATE_CHILD_TASK_SCHEMA, TASK_SCHEMA } from "~/types";
+import { db, schema } from "agent-roger-core";
 
-type Neo4JTask = {
-  properties: {
-    taskID: neo4j.Integer;
-    isDead: string;
-  };
-};
-
-// API endpoints for handling managed users
 export const tasksRouter = createTRPCRouter({
   // returns N most recently updated root nodes
-  rootTasks: protectedProcedure
+  rootTaskIDs: protectedProcedure
     .input(z.object({ n: z.number().min(1).default(20) }))
     .query(async ({ input }) => {
-      const result = await db
-        .select({ taskID: tasks.taskID })
-        .from(tasks)
-        .where(isNull(tasks.parentID))
-        .orderBy(desc(tasks.timeLastUpdated))
-        .limit(input.n);
-      return result.map((task) => task.taskID);
+      return await db.getRootTaskIDs(input);
     }),
 
   // returns task data for the specified ID
-  taskData: protectedProcedure
+  getTaskBasicData: protectedProcedure
     .input(z.object({ taskID: z.number().nullish() }))
     .query(async ({ input }) => {
-      if (!!!input.taskID) {
-        return null;
-      }
-      const result = await db
-        .select()
-        .from(tasks)
-        .where(eq(tasks.taskID, input.taskID));
-      return result ? result[0] : null;
+      if (input == undefined || input == null) return null;
+      return await db.getTaskBasicData({ taskID: input.taskID ?? undefined });
     }),
 
   // returns task data for the specified IDs
-  taskDatas: protectedProcedure
+  getTaskBasicDatas: protectedProcedure
     .input(z.object({ taskIDs: z.array(z.number()) }))
     .query(async ({ input }) => {
-      const result = await db
-        .select()
-        .from(tasks)
-        .where(inArray(tasks.taskID, input.taskIDs));
-      return result || [];
+      return await db.getTaskBasicDatas(input);
     }),
 
   // updates an existing task's data in SQL and Neo4J
-  // any field left unspecified in the input will be DELETED
-  saveArbitraryTask: protectedProcedure
-    .input(TASK_SCHEMA)
+  saveTaskData: protectedProcedure
+    .input(schema.input.saveTask)
     .mutation(async ({ input }) => {
-      // sql
-      await db
-        .update(tasks)
-        .set({
-          ...input,
-        })
-        .where(eq(tasks.taskID, input.taskID));
-      
-      // neo4j
-      let neo4jDriver: neo4j.Driver | undefined = undefined;
-      let neo4jSession: neo4j.Session | undefined = undefined;
-      try {
-        neo4jDriver = neo4j.driver(
-          env.NEO4J_URI,
-          neo4j.auth.basic(env.NEO4J_USER, env.NEO4J_PASS)
-        );
-        neo4jSession = neo4jDriver.session();
-
-        // execute query
-        await neo4jSession.run<{
-          source: Neo4JTask;
-          target: Neo4JTask;
-          relation: object;
-        }>("MATCH (task:Task {taskID: idParam,}) SET task.isDead = $isDeadParam", {
-          idParam: input.taskID,
-          isDeadParam: input.dead ? "true" : "false",
+      let res = null;
+      await db.withNeo4jDriver(async (neo4jDriver) => {
+        await db.withRedis(async (redis) => {
+          res = await db.saveTaskData(input, neo4jDriver, redis, true);
         });
-        // handle errors
-      } catch (error) {
-        console.error(
-          "FAILED to update task in Neo4J (id:  ",input.taskID,")");
-        console.error(error);
-        try {
-          await neo4jSession?.close();
-          await neo4jDriver?.close();
-        } finally {
-        }
-      }
+      });
+      return res;
     }),
 
   // creates a new root task
   createRootTask: protectedProcedure
-    .input(
-      z.object({
-        taskInput: z.object({}).nullish(),
-        initialContextSummary: z.string().nullish(),
-      })
-    )
+    .input(schema.input.createRootTask)
     .mutation(async ({ input }) => {
-      // sql
-      const newTaskID: string = (
-        await db.insert(tasks).values({
-          taskType: "ROOT",
-          ...(input.taskInput ? { input: input.taskInput } : {}),
-          ...(input.initialContextSummary
-            ? { initialContextSummary: input.initialContextSummary }
-            : {}),
-        })
-      ).insertId;
-      if (newTaskID.length == 0) {
-        console.error(
-          "Failed to create new root task in SQL with input query: ",
-          JSON.stringify(input)
-        );
-        return null;
-      }
-
-      // neo4j
-      let neo4jDriver: neo4j.Driver | undefined = undefined;
-      let neo4jSession: neo4j.Session | undefined = undefined;
-      try {
-        neo4jDriver = neo4j.driver(
-          env.NEO4J_URI,
-          neo4j.auth.basic(env.NEO4J_USER, env.NEO4J_PASS)
-        );
-        neo4jSession = neo4jDriver.session();
-
-        // execute query
-        await neo4jSession.run<{
-          source: Neo4JTask;
-          target: Neo4JTask;
-          relation: object;
-        }>("CREATE (task:Task {taskID: idParam, isDead:'false'})", {
-          idParam: +newTaskID,
+      let res = null;
+      await db.withNeo4jDriver(async (neo4jDriver) => {
+        await db.withRedis(async (redis) => {
+          res = await db.createRootTask(input, neo4jDriver, redis);
         });
-        // handle errors
-      } catch (error) {
-        console.error(
-          "FAILED to create new root task in Neo4J (id:  ",
-          newTaskID,
-          "). Delete the failed task in SQL (not urgent)."
-        );
-        console.error(error);
-        try {
-          await neo4jSession?.close();
-          await neo4jDriver?.close();
-        } finally {
-          return null
-        }
-      }
-        return +newTaskID
+      });
+      return res;
     }),
 
   // creates a new child task
   createChildTask: protectedProcedure
-    .input(CREATE_CHILD_TASK_SCHEMA)
+    .input(schema.input.createChildTask)
     .mutation(async ({ input }) => {
-      // sql
-      const newTaskID: string = (
-        await db.insert(tasks).values({
-          ...input,
-        })
-      ).insertId;
-      if (newTaskID.length == 0) {
-        console.error(
-          "Failed to create new child task in SQL with input query: ",
-          JSON.stringify(input)
-        );
-        return null;
-      }
-
-      // neo4j
-      let neo4jDriver: neo4j.Driver | undefined = undefined;
-      let neo4jSession: neo4j.Session | undefined = undefined;
-      try {
-        neo4jDriver = neo4j.driver(
-          env.NEO4J_URI,
-          neo4j.auth.basic(env.NEO4J_USER, env.NEO4J_PASS)
-        );
-        neo4jSession = neo4jDriver.session();
-
-        // execute query
-        await neo4jSession.run<{
-          source: Neo4JTask;
-          target: Neo4JTask;
-          relation: object;
-        }>(
-          "MATCH (parentTask:Task {taskID: $parentTaskIDParam}) \
-          CREATE (newTask:Task {taskID: $newTaskIDParam, isDead:'false'}) \
-          CREATE (parentTask)-[:SPAWNED]->(newTask)",
-          {
-            parentTaskIDParam: input.parentID,
-            newTaskIDParam: +newTaskID,
-          }
-        );
-        // handle errors
-      } catch (error) {
-        console.error(
-          "FAILED to create new child task in Neo4J (id:  ",
-          newTaskID,
-          "). Delete the failed task in SQL to avoid orphaned nodes."
-        );
-        console.error(error);
-        try {
-          await neo4jSession?.close();
-          await neo4jDriver?.close();
-        } finally {
-          return null;
-        }
-      }
-      return +newTaskID;
+      let res = null;
+      await db.withNeo4jDriver(async (neo4jDriver) => {
+        await db.withRedis(async (redis) => {
+          res = await db.createChildTask(input, neo4jDriver, redis);
+        });
+      });
+      return res;
     }),
 
-  // returns nodeIDs=[rootTaskID, ...descendentIDs], links[{source, target}], tasks: Task[]
-  taskTree: protectedProcedure
-    .input(z.object({ rootTaskID: z.number().nullish() }))
+  // returns nodeIDs=[rootTaskID, ...descendentIDs], links[{source, target}], tasks: TaskBasicData[]
+  getTaskTree: protectedProcedure
+    .input(schema.input.getTaskTree)
     .query(async ({ input }) => {
-      if (!!!input.rootTaskID) {
-        return { taskIDs: [], links: [], tasks: [] };
-      }
-      // get db connection
-      let neo4jDriver: neo4j.Driver | undefined = undefined;
-      let neo4jSession: neo4j.Session | undefined = undefined;
-      try {
-        neo4jDriver = neo4j.driver(
-          env.NEO4J_URI,
-          neo4j.auth.basic(env.NEO4J_USER, env.NEO4J_PASS)
-        );
-        neo4jSession = neo4jDriver.session();
-
-        // execute query
-        const result = await neo4jSession.run<{
-          source: Neo4JTask;
-          target: Neo4JTask;
-          relation: object;
-        }>(
-          "MATCH (root_task:Task {taskID: $idParam}) \
-          CALL apoc.path.subgraphAll(root_task, {relationshipFilter: 'SPAWNED>', maxLevel: -1}) YIELD nodes, relationships \
-          UNWIND relationships AS relation \
-          RETURN startNode(relation) AS source, relation, endNode(relation) AS target; ",
-          {
-            idParam: input.rootTaskID,
-          }
-        );
-
-        // process nodes and links
-        const taskIDs = new Set<number>([input.rootTaskID]);
-        const links: { source: number; target: number }[] = [];
-        result.records.forEach((record) => {
-          taskIDs.add(record.get("source").properties.taskID.toInt());
-          taskIDs.add(record.get("target").properties.taskID.toInt());
-          links.push({
-            source: record.get("source").properties.taskID.toInt(),
-            target: record.get("target").properties.taskID.toInt(),
-          });
-        });
-
-        // get task data from task ids
-        const taskData = await db
-          .select()
-          .from(tasks)
-          .where(inArray(tasks.taskID, Array.from(taskIDs)));
-        return { taskIDs: Array.from(taskIDs), links, tasks: taskData || [] };
-
-        // handle errors
-      } catch (error) {
-        console.error(
-          "FAILED to get task graph for rootTaskID: ",
-          input.rootTaskID
-        );
-        console.error(error);
-        try {
-          await neo4jSession?.close();
-          await neo4jDriver?.close();
-        } finally {
-          return { taskIDs: [], links: [], tasks: [] };
-        }
-      }
+      let res = null;
+      await db.withNeo4jDriver(async (neo4jDriver) => {
+        res = await db.getTaskTree(input, neo4jDriver);
+      });
+      return res;
     }),
 });
 

@@ -4,18 +4,27 @@
   "packageManager": "yarn@3.5.0",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "libs/*"
   ],
   "scripts": {
-    "dev": "yarn workspace agent-roger-dashboard dev"
-  },
-  "dependencies": {
-    "typescript": "^5.0.2"
+    "build:core": "yarn workspace agent-roger-core build",
+    "build:task-runner": "cd packages/task-runner && docker build ../.. -t agent-roger-task-runner -f ./Dockerfile",
+    "build:all": "yarn workspace agent-roger-core build && yarn workspace agent-roger-task-runner build",
+    "dev": "yarn workspace agent-roger-dashboard dev",
+    "start:dashboard": "yarn workspace agent-roger-dashboard dev",
+    "start:task-runner": "docker run -it agent-roger-task-runner",
+    "start:vector-db": "cd docker-containers/weaviate && docker-compose --env-file ../../.env up",
+    "start:vector-db-background": "cd docker-containers/weaviate && docker-compose --env-file ../../.env up -d",
+    "start:redis": "cd docker-containers/redis && docker-compose --env-file ../../.env up",
+    "start:redis-background": "cd docker-containers/redis && docker-compose --env-file ../../.env up -d"
   },
   "devDependencies": {
-    "eslint": "^8.36.0",
-    "prettier": "^2.8.6",
-    "tailwindcss": "^3.3.0",
-    "typescript": "^5.0.2"
+    "dotenv": "^16.0.3",
+    "drizzle-kit": "0.17.5-e5944eb",
+    "drizzle-orm": "0.25.1",
+    "eslint": "8.39.0",
+    "prettier": "2.8.8",
+    "typescript": "5.0.2"
   }
 }

@@ -18,6 +18,9 @@ const server = z.object({
   WEAVIATE_KEY: z.string().min(1),
   WEAVIATE_BACKUP_DIR: z.string().min(1),
   OPENAI_API_KEY: z.string().min(1),
+  REDIS_HOST: z.string(),
+  REDIS_PORT?: z.number(),
+  REDIS_PASS: z.string(),
 });
 
 /**
@@ -25,7 +28,6 @@ const server = z.object({
  * built with invalid env vars. To expose them to the client, prefix them with `NEXT_PUBLIC_`.
  */
 const client = z.object({
-  // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
 });
 
@@ -37,7 +39,6 @@ const client = z.object({
  */
 const processEnv = {
   NODE_ENV: process.env.NODE_ENV,
-  // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
@@ -52,6 +53,9 @@ const processEnv = {
   WEAVIATE_BACKUP_DIR: process.env.WEAVIATE_BACKUP_DIR,
   WEAVIATE_HOST: process.env.WEAVIATE_HOST,
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  REDIS_HOST: process.env.REDIS_HOST,
+  REDIS_PORT: process.env.REDIS_PORT,
+  REDIS_PASS: process.env.REDIS_PASS,
 };
 
 // Don't touch the part below

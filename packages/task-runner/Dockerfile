@@ -1,16 +1,30 @@
-FROM node:18.5.0 as base
+FROM node:18.5.0 as build
 
-WORKDIR /home/node/app
+WORKDIR /usr/src
 
-COPY agent-roger-task-runner/package*.json ./
+RUN mkdir -p packages/weaviate-ts-client packages/agent-roger-core packages/task-runner .yarn/releases
+COPY ./yarn.lock ./
+COPY .yarnrc.yml ./
+COPY .yarn/releases .yarn/releases
+COPY .pnp.cjs .pnp.cjs
+COPY .pnp.loader.mjs .pnp.loader.mjs
+COPY .env .env
+COPY ./package.json ./
+COPY ./packages/weaviate-ts-client/package.json ./packages/weaviate-ts-client/package.json
+COPY ./packages/weaviate-ts-client/tsconfig.json ./packages/weaviate-ts-client/tsconfig.json
+COPY ./packages/agent-roger-core/package.json ./packages/agent-roger-core/package.json
+COPY ./packages/agent-roger-core/tsconfig.json ./packages/agent-roger-core/tsconfig.json
+COPY ./packages/task-runner/package.json ./packages/task-runner/package.json
+COPY ./packages/task-runner/tsconfig.json ./packages/task-runner/tsconfig.json
 
-RUN npm i
+RUN yarn
 
-COPY agent-roger-task-runner/tsconfig.json ./
-COPY agent-roger-task-runner/src ./src
+COPY ./packages/weaviate-ts-client/ ./packages/weaviate-ts-client/
+COPY ./packages/agent-roger-core/ ./packages/agent-roger-core/
+COPY ./packages/task-runner/ ./packages/task-runner/
 
-FROM base as production
+RUN yarn workspace weaviate-ts-client2 build
+RUN yarn workspace agent-roger-core build
+RUN yarn workspace agent-roger-task-runner build
 
-ENV NODE_PATH=./src
-
-CMD [ "npm", "run", "start" ]
+CMD ["yarn", "workspace", "agent-roger-task-runner", "start"]

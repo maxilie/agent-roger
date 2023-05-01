@@ -4,19 +4,10 @@
     "esModuleInterop": true,
     "target": "ESNext",
     "moduleResolution": "node",
-    "sourceMap": true,
-    "baseUrl": "./",
     "outDir": "./build",
     "skipLibCheck": true,
     "allowJs": true,
     "checkJs": false
   },
-  "include": ["**/*", "eslintrc.cjs"],
-  "exclude": ["node_modules", "build"],
-  "ts-node": {
-    "swc": true,
-    "compilerOptions": {
-      "module": "commonjs"
-    }
-  }
+  "include": ["**/*", ".eslintrc.cjs"]
 }

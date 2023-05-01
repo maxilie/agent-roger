@@ -14,7 +14,7 @@ Agent Roger is an AI system that can complete your tasks by intelligently spawni
 
 More broadly speaking, it is a somewhat novel _implementation_ for the idea of "AI using other AI."
 
-Its purpose is similar to that of LangChain, BabyAGI, and other task-based and execution-loop-based systems.
+Its purpose is similar to that of LangChain, BabyAGI, AutoGPT, and other task-based and execution-loop-based systems.
 
 However, there are key differences in Agent Roger:
 
@@ -43,7 +43,7 @@ However, there are key differences in Agent Roger:
 
 ### Runs orders of magnitude more inferences and logic to execute a single sub-task than do traditional systems:
 
-- Agent Roger is made for an age when inference is cheap (think 200k tokens/second at $10 USD/hr for a top-notch multimodal transformer model).
+- Agent Roger is made for an age when inference is relatively cheap (think 200k tokens/second at $30 USD/hr for a 50B-parameter multi-modal model).
 - This repo provides a starting point for exploring the possibilities of using dynamic, concurrency-friendly task trees.
 - The problem of inference (two problems: fine-tuning models and inferencing them quickly) is left to the intelligent and determined reader.
 
@@ -87,7 +87,7 @@ You will need the following (free) infra, each of which can be spun up using ven
   - (in Vercel, make sure to set "Root Directory" to `packages/dashboard`)
 - new PlanetScale MySQL database (planetscale.com)
 - new Upstache Redis database (upstache.com)
-- new Neo4J graph database (AuraDB)
+- new Neo4J graph database (neo4j.com/auradb)
 - new Clerk authentication app (clerk.com)
 
 Set environment variables:
@@ -96,38 +96,58 @@ Set environment variables:
 - For local development, set correct environment variables in your `.env`.
 - For deployment, set correct environment variables in the Vercel dashboard under Settings -> Environment Variables (you can copy/paste from your `.env` file).
 
-NOTE: If you get a type error for `drizzle-kit` in `/src/drizzle.config.ts`, then you need to install `yarn add --dev drizzle-kit@db-push` or a later version.
-
 </details>
 
 # Deploying
 
-<details>
-   <summary>Local Deployment</summary>
-To run the dashboard on your local computer:
-```bash
-yarn dev
-```
-
-   </details>
-
 1. Push to GitHub to trigger new Vercel deployment of the dashboard.
 
-   - You can also run the dashboard on your local computer: `yarn --cwd dashboard dev`.
+   - You can also run the dashboard on your local computer: `yarn start:dashboard`.
 
 2. To start the Weaviate vector database:
 
-```
-docker-compose down  # ensures database is saved to disk
-docker-compose rm -f  # if you want to rebuild from scratch
-docker-compose up  # OR, TO RUN IN BACKGROUND:  docker-compose up -d
+```bash
+docker-compose down # ensures database is saved to disk
+docker-compose rm -f # if you want to rebuild from scratch
+docker-compose up # OR, TO RUN IN BACKGROUND: docker-compose up -d
 ```
 
 3. To start a task runner (can be run locally), make sure `.env` is correct and start the container:
 
+```bash
+# install external dependencies
+yarn install
+
+# build core packages
+yarn build:weaviate-ts-client
+yarn build:agent-roger-core
+
+# build a docker image for task runner
+yarn build:task-runner
+
+# RUN DOCKER CONTAINER
+yarn start:task-runner
 ```
-docker build -t agent-roger-task-runner -f agent-roger-task-runner/Dockerfile . && docker run -it agent-roger-task-runner
+
+<details>
+
+   <summary>Local Deployment</summary>
+   
+To run the dashboard on your local computer:
+
+```bash
+# install external dependencies
+yarn install
+
+# build core packages
+yarn build:weaviate-ts-client
+yarn build:agent-roger-core
+
+# START THE DASHBOARD
+yarn start:dashboard
 ```
+
+</details>
 
 # MySQL Database
 
@@ -135,12 +155,10 @@ To change database schema:
 
 1. Log in to planetscale.com.
 2. Create a new branch of the main database and copy the credentials into your local `.env` file.
-3. Change `/src/db/schema.ts` and other files as necessary.
-4. Install (temporarily) special version of drizzle-kit: `yarn add --dev drizzle-kit@db-push`.
-5. Run `npx drizzle-kit push:mysql` to update the new PlanetScale branch.
-6. Update drizzle-kit or else Vercel deployment will fail: `yarn remove drizzle-kit && yarn add --dev drizzle-kit`.
-7. Change any router and component code necessary to work with the new schema.
-8. Once everything is working locally, go to the PlanetScale branch and create a new "deploy request", and then approve the deploy request to update the db main branch's schema.
+3. Change `/packages/agent-roger-core/src/db/sql-schema.ts` and other files as necessary.
+4. Run `yarn workspace agent-roger-core db-push` to update the new PlanetScale branch.
+5. Make any changes you need in order for the rest of the code to work with the new schema.
+6. Once everything is working locally, go to the PlanetScale branch and create a new "deploy request", and then approve the deploy request to update the db main branch's schema.
 
 # Vector Database (Weaviate)
 
@@ -162,3 +180,11 @@ NOTE: We use yarn workspaces to configure the monorepo. You might need a Yarn "E
 - Choose "Select TypeScript Version"
 - Pick "Use Workspace Version"
 - See here for more info: https://yarnpkg.com/getting-started/editor-sdks#vscode
+
+```
+
+```
+
+```
+
+```

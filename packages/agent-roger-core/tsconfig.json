@@ -5,11 +5,11 @@
     "target": "ESNext",
     "moduleResolution": "node",
     "sourceMap": true,
-    "rootDir": "./src",
     "outDir": "./dist",
     "skipLibCheck": true,
     "allowJs": true,
-    "checkJs": false
+    "checkJs": false,
+    "declaration": true
   },
   "include": ["**/*", "eslintrc.cjs"],
   "exclude": ["node_modules", "build", "dist"]
