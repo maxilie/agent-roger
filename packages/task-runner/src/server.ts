@@ -2,16 +2,14 @@
 console.log("Starting up! Importing dependencies...");
 
 import weaviate, { type WeaviateClient } from "weaviate-ts-client2";
-import { handleTask, type RogerTask } from "./task.js";
 import * as neo4j from "neo4j-driver";
-import { Redis, Pipeline, RedisOptions } from "ioredis";
 
 import {
   drizzle,
   type PlanetScaleDatabase,
 } from "drizzle-orm/planetscale-serverless";
 
-import { connect, Connection } from "@planetscale/database";
+import { connect } from "@planetscale/database";
 import { db, env, REDIS_TASK_QUEUE, RedisManager } from "agent-roger-core";
 
 // globals

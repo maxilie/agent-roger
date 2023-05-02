@@ -1,16 +1,10 @@
 import {
-  type EndFn,
-  type ErrFn,
-  type GetFn,
-  type SetFn,
+  type StageFunctionHelpers,
   type StageFunction,
 } from "../stage-function";
 
 const stageFn_generateKeywordContextQueries: StageFunction = async (
-  get: GetFn,
-  set: SetFn,
-  err: ErrFn,
-  end: EndFn
+  helpers: StageFunctionHelpers
 ) => {
   return await new Promise((resolve, reject) => {
     setTimeout(() => {

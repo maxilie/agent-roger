@@ -1,3 +1,10 @@
 import STAGE_PRESETS from "./presets";
-import { StageFunction } from "./stage-function";
-export { StageFunction, STAGE_PRESETS };
+import { StageFunction, StageFunctionHelpers } from "./stage-function";
+import { StageData, stageDataSchema } from "./stage-data";
+export {
+  StageFunction,
+  StageFunctionHelpers,
+  STAGE_PRESETS,
+  StageData,
+  stageDataSchema,
+};

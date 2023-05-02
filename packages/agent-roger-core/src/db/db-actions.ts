@@ -669,7 +669,7 @@ export const createChildTask = async (
     // execute query
     await neo4jSession.run(
       "MATCH (parentTask:Task {taskID: $parentTaskIDParam}) \
-          CREATE (newTask:Task {taskID: $newTaskIDParam, isDead:'false'}) \
+          CREATE (newTask:Task {taskID: $newTaskIDParam, isDead: 'false'}) \
           CREATE (parentTask)-[:SPAWNED]->(newTask)",
       {
         parentTaskIDParam: input.parentID,
@@ -706,7 +706,11 @@ export const createChildTask = async (
 };
 
 /**
- * Get IDs of task with `taskID`, and all tasks descended from it.
+ *
+ *
+ * Get IDs of task with `rootTaskID`, and all tasks descended from it.
+ *
+ *
  */
 export const InSchema_getTaskTreeIDs = z.object({
   rootTaskID: z.number().min(1),
@@ -764,7 +768,68 @@ export const getTaskTreeIDs = async (
 };
 
 /**
- * Get a task tree rooted at the node with taskID=rootTaskID.
+ * Delete task (in SQL and Neo4J) with `taskID`, and all its descendant tasks.
+ */
+export const InSchema_deleteTaskTree = z.object({
+  taskID: z.number().min(1),
+});
+export type InType_deleteTaskTree = z.infer<typeof InSchema_deleteTaskTree>;
+export const deleteTaskTree = async (
+  input: InType_deleteTaskTree,
+  neo4jDriver: neo4j.Driver
+): Promise<void> => {
+  if (!!!input.taskID) {
+    return;
+  }
+  const taskIDsToDelete = new Set([input.taskID]);
+  try {
+    const neo4jSession = neo4jDriver.session();
+
+    // get nodes from neo4j
+    const result = await neo4jSession.run(
+      "MATCH (root_task:Task {taskID: $idParam}) \
+          CALL apoc.path.subgraphAll(root_task, {relationshipFilter: 'SPAWNED>', maxLevel: -1}) YIELD nodes, relationships \
+          UNWIND relationships AS relation \
+          RETURN startNode(relation) AS source, endNode(relation) AS target; ",
+      {
+        idParam: input.taskID,
+      }
+    );
+
+    // process nodes from neo4j
+    result.records.forEach((record) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      taskIDsToDelete.add(record.get("source").properties.taskID.toInt());
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      taskIDsToDelete.add(record.get("target").properties.taskID.toInt());
+    });
+
+    // delete nodes and relationships in neo4j
+    await neo4jSession.run(
+      "MATCH (root_task:Task {taskID: $idParam}) \
+      CALL apoc.path.subgraphAll(root_task, {relationshipFilter: 'SPAWNED>', maxLevel: -1}) YIELD nodes, relationships \
+      FOREACH (relation IN relationships | DELETE relation) \
+      FOREACH (node IN nodes | DELETE node); ",
+      {
+        idParam: input.taskID,
+      }
+    );
+    await neo4jSession.close();
+
+    // delete tasks in SQL
+    await sqlClient
+      .delete(tasks)
+      .where(inArray(tasks.taskID, Array.from(taskIDsToDelete)));
+
+    // handle errors
+  } catch (error) {
+    console.error("FAILED to delete task tree rooted at task: ", input.taskID);
+    console.error(error);
+  }
+};
+
+/**
+ * Get a task tree (nodes & relationships) rooted at the node with taskID=rootTaskID.
  */
 
 export const InSchema_getTaskTree = z.object({

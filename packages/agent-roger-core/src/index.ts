@@ -25,9 +25,19 @@ import {
   withNeo4jDriver,
   withRedis,
   getActiveTaskIDs,
+  Json,
+  jsonSchema,
+  InSchema_deleteTaskTree,
+  deleteTaskTree,
 } from "./db";
 import { MAX_UNSYNC_TIME } from "./constants";
-import { type StageFunction, STAGE_PRESETS } from "./stage";
+import {
+  type StageFunction,
+  type StageFunctionHelpers,
+  type StageData,
+  STAGE_PRESETS,
+  stageDataSchema,
+} from "./stage";
 import { type TaskDefinition, TASK_PRESETS } from "./task";
 
 interface DB {
@@ -44,6 +54,7 @@ interface DB {
   createChildTask: typeof createChildTask;
   getTaskTreeIDs: typeof getTaskTreeIDs;
   getTaskTree: typeof getTaskTree;
+  deleteTaskTree: typeof deleteTaskTree;
 }
 
 const db: DB = {
@@ -60,6 +71,7 @@ const db: DB = {
   createChildTask: createChildTask,
   getTaskTreeIDs: getTaskTreeIDs,
   getTaskTree: getTaskTree,
+  deleteTaskTree: deleteTaskTree,
 };
 
 interface Schema {
@@ -73,7 +85,9 @@ interface Schema {
     getTaskStageNData: typeof InSchema_getTaskStageNData;
     getTaskTree: typeof InSchema_getTaskTree;
     getTaskTreeIDs: typeof InSchema_getTaskTreeIDs;
+    deleteTaskTree: typeof InSchema_deleteTaskTree;
   };
+  json: typeof jsonSchema;
 }
 
 const schema: Schema = {
@@ -87,7 +101,9 @@ const schema: Schema = {
     getTaskStageNData: InSchema_getTaskStageNData,
     getTaskTree: InSchema_getTaskTree,
     getTaskTreeIDs: InSchema_getTaskTreeIDs,
+    deleteTaskTree: InSchema_deleteTaskTree,
   },
+  json: jsonSchema,
   // TODO task.TaskDefinition: Schema_TaskDefinition (at least 1 stage, not more than 24)
 };
 
@@ -121,7 +137,10 @@ export {
   stage,
   task,
   db,
+  Json,
+  StageFunctionHelpers,
   StageFunction,
+  StageData,
   TaskDefinition,
   schema,
   RedisManager,
