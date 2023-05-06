@@ -5,12 +5,12 @@ import {
   useOrganizationList,
 } from "@clerk/nextjs";
 import { type NextPage } from "next";
+import { schema, task, TaskData, TaskUpdateData } from "agent-roger-core";
 
 import { Button } from "~/components/ui/button";
 import { CheckCircle, Loader2, Webhook } from "lucide-react";
 import { type SetStateAction, useCallback, useEffect, useState } from "react";
 import { api, type RouterOutputs } from "~/utils/api";
-import { type TaskType } from "agent-roger-core";
 import dynamic from "next/dynamic";
 import { z } from "zod";
 // import { TEST_CONST } from "../../../agent-roger-core";
@@ -28,7 +28,8 @@ export type TaskNode = {
   level: number;
   status: "running" | "success" | "failed" | "paused" | "dead";
   dead: boolean;
-  type: TaskType;
+  isAbstract: boolean;
+  isExecution: boolean;
   parentID: number;
   idxInSiblingGroup: number;
   descendentIDs: number[];
@@ -47,7 +48,7 @@ If a value is null, that property will be deleted in the database. To leave a pr
  */
 const validateAndParseTaskProps = (
   taskProps: SelectedTaskProps
-): z.infer<typeof TASK_SCHEMA> => {
+): TaskUpdateData => {
   // init vars
   const processedParams: {
     [k: string]: string | number | Date | object | boolean | null;
@@ -56,12 +57,11 @@ const validateAndParseTaskProps = (
 
   // build processedParams by visiting each taskProp
   for (const key in taskProps) {
-    if (!key || !TASK_SCHEMA.shape.hasOwnProperty(key)) continue;
+    if (!key || !schema.updateTask.shape.hasOwnProperty(key)) continue;
     const fieldVal = taskProps[key as keyof SelectedTaskProps];
 
     // determine whether string field (edited by user) should be converted to json
-    const valueSchema =
-      TASK_SCHEMA.shape[key as keyof z.infer<typeof TASK_SCHEMA>];
+    const valueSchema = schema.updateTask.shape[key as keyof TaskUpdateData];
     const isJsonField =
       valueSchema instanceof z.ZodObject ||
       (valueSchema instanceof z.ZodUnion &&
@@ -91,7 +91,7 @@ const validateAndParseTaskProps = (
   }
 
   // validate process params or throw a z.ZodError
-  return TASK_SCHEMA.parse(filteredTaskProps);
+  return schema.updateTask.parse(filteredTaskProps);
 };
 
 const getJSONString = (obj: object | null | unknown) => {
@@ -102,8 +102,8 @@ const getJSONString = (obj: object | null | unknown) => {
   }
 };
 
-const getNodeSize = (task: RouterOutputs["tasks"]["taskDatas"][0]) => {
-  return task.taskType == "ROOT" ? 1 : 1;
+const getNodeSize = (task: TaskData) => {
+  return task.isAbstract ? 1 : 1;
 };
 
 type WindowDimentions = {
@@ -153,7 +153,7 @@ const Dashboard: NextPage = () => {
     isLoading: isLoadingIDs,
     isError: failedLoadingIDs,
     data: rootTaskIDs,
-  } = api.tasks.rootTasks.useQuery({ n: 20 });
+  } = api.tasks.rootTaskIDs.useQuery({ n: 20 });
 
   // select most recent root task by default
   useEffect(() => {
@@ -173,7 +173,12 @@ const Dashboard: NextPage = () => {
 
   // build nodes and links
   useEffect(() => {
-    if (!!!selectedTaskTree || !!!selectedRootTaskID) return;
+    if (
+      !selectedTaskTree ||
+      selectedRootTaskID == undefined ||
+      selectedRootTaskID == null
+    )
+      return;
 
     // new node function
     const createNode = (
@@ -181,6 +186,7 @@ const Dashboard: NextPage = () => {
       level: number,
       parentID: number
     ): TaskNode | null => {
+      if (!selectedTaskTree || !selectedTaskTree.tasks) return null;
       const task = selectedTaskTree.tasks.find((task) => task.taskID == nodeID);
       if (!task) return null;
       let status = task.success != null && !task.success ? "failed" : "running";
@@ -196,7 +202,7 @@ const Dashboard: NextPage = () => {
           task.taskID +
           ") is " +
           status.toUpperCase(),
-        dead: task.dead,
+        dead: task.dead ?? false,
         value: getNodeSize(task),
         level,
         status: status as "success" | "failed" | "running" | "paused" | "dead",
@@ -313,27 +319,30 @@ const Dashboard: NextPage = () => {
   }, []);
 
   // prevent rerendering the force graph by separating selectedNode data from selectedTaskTree
-  const { data: selectedTask } = api.tasks.getTaskData.useQuery({
+  const { data: selectedTask } = api.tasks.getTaskBasicData.useQuery({
     taskID: selectedTaskID,
   });
 
   // save task db function
   const saveTask = api.tasks.saveTaskData.useMutation({
     async onSuccess() {
-      await trpcUtils.tasks.getTaskData.invalidate();
+      await trpcUtils.tasks.getTaskBasicData.invalidate();
     },
   });
 
   // create new task db function
   const createRootTask = api.tasks.createRootTask.useMutation({
     async onSuccess() {
-      await trpcUtils.tasks.rootTasks.invalidate();
+      await trpcUtils.tasks.rootTaskIDs.invalidate();
     },
   });
 
   const saveTaskFn = async (taskProps: SelectedTaskProps) => {
     try {
-      const params = validateAndParseTaskProps(taskProps);
+      const params = schema.input.saveTask.parse({
+        taskID: taskProps.taskID,
+        newFields: validateAndParseTaskProps(taskProps),
+      });
       await saveTask.mutateAsync(params);
     } catch (error) {
       // show error alert
@@ -413,7 +422,8 @@ const Dashboard: NextPage = () => {
   }
 
   const createNewTask = async (params: {
-    inputJSONString: string;
+    initialInputFieldsStr: string;
+    initialContextFieldsStr: string;
     initialContextSummary: string;
   }) => {
     const { inputJSONString, initialContextSummary } = params;
@@ -423,7 +433,10 @@ const Dashboard: NextPage = () => {
       inputJSON = JSON.parse(inputJSONString);
     } catch (error) {}
     await createRootTask.mutateAsync({
-      ...(inputJSON ? { taskInput: inputJSON } : {}),
+      taskDefinition: task.preset.abstract ?? {},
+      ...(initialContextFields
+        ? { initialContextFields: initialContextFieldsJSON }
+        : {}),
       initialContextSummary: params.initialContextSummary,
     });
     setSelectedRootTaskID(undefined);
