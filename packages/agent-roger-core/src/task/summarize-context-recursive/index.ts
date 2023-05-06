@@ -1,4 +1,4 @@
-import { type TaskDefinition } from "../..";
+import { type TaskDefinition } from "../../zod-schema";
 
 const task_summarizeContextRecursive: TaskDefinition = {
   isAbstract: true,

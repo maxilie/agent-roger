@@ -21,24 +21,41 @@ import {
   InSchema_getTaskTree,
   InSchema_getTaskTreeIDs,
   InSchema_createChildTask,
-  Neo4JTask,
   withNeo4jDriver,
   withRedis,
   getActiveTaskIDs,
-  Json,
-  jsonSchema,
   InSchema_deleteTaskTree,
   deleteTaskTree,
+  getTaskStageNData,
 } from "./db";
-import { MAX_UNSYNC_TIME } from "./constants";
+import { AI_MODELS, AiModel, MAX_UNSYNC_TIME } from "./constants";
 import {
   type StageFunction,
   type StageFunctionHelpers,
-  type StageData,
   STAGE_PRESETS,
-  stageDataSchema,
 } from "./stage";
-import { type TaskDefinition, TASK_PRESETS } from "./task";
+import { TASK_PRESETS } from "./task";
+import {
+  Json,
+  JsonObj,
+  Neo4JTask,
+  ResultData,
+  StageData,
+  TaskDefinition,
+  jsonObjSchema,
+  jsonSchema,
+  resultDataSchema,
+  stageDataSchema,
+  taskBasicDataSchema,
+  TaskBasicData,
+  taskDataSchema,
+  TaskData,
+  taskDefinitionSchema,
+  taskUpdateSchema,
+  TaskUpdateData,
+  newRootTaskSchema,
+  newChildTaskSchema,
+} from "./zod-schema/index.js";
 
 interface DB {
   tasks: typeof tasks;
@@ -49,6 +66,7 @@ interface DB {
   getActiveTaskIDs: typeof getActiveTaskIDs;
   getTaskBasicData: typeof getTaskBasicData;
   getTaskBasicDatas: typeof getTaskBasicDatas;
+  getTaskStageNData: typeof getTaskStageNData;
   saveTaskData: typeof saveTaskData;
   createRootTask: typeof createRootTask;
   createChildTask: typeof createChildTask;
@@ -66,6 +84,7 @@ const db: DB = {
   getActiveTaskIDs: getActiveTaskIDs,
   getTaskBasicData: getTaskBasicData,
   getTaskBasicDatas: getTaskBasicDatas,
+  getTaskStageNData: getTaskStageNData,
   saveTaskData: saveTaskData,
   createRootTask: createRootTask,
   createChildTask: createChildTask,
@@ -88,6 +107,15 @@ interface Schema {
     deleteTaskTree: typeof InSchema_deleteTaskTree;
   };
   json: typeof jsonSchema;
+  jsonObj: typeof jsonObjSchema;
+  taskDefinition: typeof taskDefinitionSchema;
+  stageData: typeof stageDataSchema;
+  resultData: typeof resultDataSchema;
+  taskBasicData: typeof taskBasicDataSchema;
+  taskData: typeof taskDataSchema;
+  updateTask: typeof taskUpdateSchema;
+  newRootTask: typeof newRootTaskSchema;
+  newChildTask: typeof newChildTaskSchema;
 }
 
 const schema: Schema = {
@@ -104,7 +132,15 @@ const schema: Schema = {
     deleteTaskTree: InSchema_deleteTaskTree,
   },
   json: jsonSchema,
-  // TODO task.TaskDefinition: Schema_TaskDefinition (at least 1 stage, not more than 24)
+  jsonObj: jsonObjSchema,
+  taskDefinition: taskDefinitionSchema,
+  stageData: stageDataSchema,
+  resultData: resultDataSchema,
+  taskBasicData: taskBasicDataSchema,
+  taskData: taskDataSchema,
+  updateTask: taskUpdateSchema,
+  newRootTask: newRootTaskSchema,
+  newChildTask: newChildTaskSchema,
 };
 
 /**
@@ -138,13 +174,20 @@ export {
   task,
   db,
   Json,
+  JsonObj,
   StageFunctionHelpers,
   StageFunction,
   StageData,
+  ResultData,
   TaskDefinition,
+  TaskBasicData,
+  TaskData,
+  TaskUpdateData,
   schema,
   RedisManager,
   REDIS_TASK_QUEUE,
   Neo4JTask,
   MAX_UNSYNC_TIME,
+  AI_MODELS,
+  AiModel,
 };

@@ -4,12 +4,16 @@ import { env } from "../env.mjs";
 export const REDIS_TASK_QUEUE = {
   waiting: "queue_waiting",
   processing: "queue_processing",
+  codeLLMInference: "queue_inference_code",
 };
 
 export class RedisManager {
   readonly redis: Redis;
   pipeline: ChainableCommander;
-  pipelinePromises: ChainableCommander[] = [];
+  inferenceResultPromiseResolvers: {
+    [pipelineIdx: number]: (result: string | null) => void;
+  } = {};
+  ignoredPipelineIdxs: number[] = [];
 
   constructor(taskRunnerID?: string) {
     const redisOpts: RedisOptions = {
@@ -20,6 +24,8 @@ export class RedisManager {
     };
     this.redis = new Redis(redisOpts);
     this.pipeline = this.redis.pipeline();
+    this.inferenceResultPromiseResolvers = {};
+    this.ignoredPipelineIdxs = [];
   }
 
   /**
@@ -35,7 +41,9 @@ export class RedisManager {
    */
   async restartQueues(taskIDs: number[]) {
     // clear current pipeline
-    this.clearPipeline();
+    this.pipeline = this.redis.pipeline();
+    this.inferenceResultPromiseResolvers = {};
+    this.ignoredPipelineIdxs = [];
 
     // clear queues and add tasks to waiting queue
     await this.redis
@@ -57,7 +65,7 @@ export class RedisManager {
   /**
    * Moves task from the processing queue to the waiting queue.
    */
-  markTaskProcessing(taskID: number) {
+  markTaskWaitingAgain(taskID: number) {
     this.pipeline.smove(
       REDIS_TASK_QUEUE.processing,
       REDIS_TASK_QUEUE.waiting,
@@ -72,12 +80,28 @@ export class RedisManager {
     this.pipeline.lrem(REDIS_TASK_QUEUE.processing, 0, taskID);
   }
 
-  executePipeline(): Promise<[error: Error | null, result: unknown][] | null> {
-    return this.pipeline.exec();
+  queueInferenceRequest(request: { requestID: string; llmInput: string }) {
+    this.pipeline.rpush(
+      REDIS_TASK_QUEUE.codeLLMInference,
+      JSON.stringify(request)
+    );
+    this.ignoredPipelineIdxs.push(this.pipeline.length - 1);
   }
 
-  clearPipeline() {
-    this.pipeline = this.redis.pipeline();
+  /**
+   * Returns the LLM string output, or null if the inference is not yet complete.
+   *
+   * Queues a promise in the pipeline instead of executing the redis command immediately.
+   */
+  async getInferenceResult(requestID: string): Promise<string | null> {
+    this.pipeline.get(REDIS_TASK_QUEUE.codeLLMInference + "_" + requestID);
+    const pipelineIdx = this.pipeline.length - 1;
+    let promiseResolver: (result: string | null) => void;
+    const resultPromise = new Promise<string | null>((resolve) => {
+      promiseResolver = resolve;
+    });
+    this.inferenceResultPromiseResolvers[pipelineIdx] = promiseResolver;
+    return resultPromise;
   }
 }
 

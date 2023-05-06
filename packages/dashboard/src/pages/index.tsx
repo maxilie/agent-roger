@@ -1,4 +1,9 @@
-import { SignedIn, SignedOut, SignIn } from "@clerk/nextjs";
+import {
+  SignedIn,
+  SignedOut,
+  SignIn,
+  useOrganizationList,
+} from "@clerk/nextjs";
 import { type NextPage } from "next";
 
 import { Button } from "~/components/ui/button";
@@ -539,18 +544,29 @@ const GraphArea = (props: {
 };
 
 const Home: NextPage = () => {
-  return (
-    <>
-      <SignedIn>
-        <Dashboard />
-      </SignedIn>
+  const { organizationList, isLoaded } = useOrganizationList();
 
-      <SignedOut>
-        <div className="flex h-full w-full justify-center pt-20 align-middle">
-          <SignIn />
-        </div>
-      </SignedOut>
-    </>
+  let isAdmin = false;
+  if (isLoaded && organizationList) {
+    organizationList.forEach(({ organization }) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      if (organization.name.toLowerCase().includes("admin")) isAdmin = true;
+    });
+  }
+
+  if (!isLoaded) {
+    return (
+      <div className="flex h-screen w-full flex-col">
+        <Loader2 className="m-auto h-10 w-10 animate-spin" />
+      </div>
+    );
+  }
+  return isAdmin ? (
+    <Dashboard />
+  ) : (
+    <div className="flex h-full w-full justify-center pt-20 align-middle">
+      <SignIn />
+    </div>
   );
 };
 

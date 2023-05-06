@@ -89,6 +89,8 @@ You will need the following (free) infra, each of which can be spun up using ven
 - new Upstache Redis database (upstache.com)
 - new Neo4J graph database (neo4j.com/auradb)
 - new Clerk authentication app (clerk.com)
+  - create a user `adminUser`. create an organization called `admin` with owner `adminUser`.
+  - only members of the `admin` organization will be able to access the dashboard.
 
 Set environment variables:
 

@@ -11,6 +11,8 @@ import {
 
 import { connect } from "@planetscale/database";
 import { db, env, REDIS_TASK_QUEUE, RedisManager } from "agent-roger-core";
+import { RunningTask } from "./running-task";
+import { RateLimiter } from "./rate-limiter";
 
 // globals
 const taskRunnerID: string =
@@ -19,7 +21,11 @@ let weaviateClient: WeaviateClient;
 let sqlClient: PlanetScaleDatabase;
 let neo4jDriver: neo4j.Driver;
 let redis: RedisManager;
+const rateLimiter = new RateLimiter();
 
+/**
+ * Initializes and tests database connections.
+ */
 const initialize = async () => {
   // connect to weaviate
   weaviateClient = weaviate.client({
@@ -66,8 +72,11 @@ const initialize = async () => {
   await redis.restartQueues(unfinishedTaskIDs);
 };
 
+/**
+ * Runs the next pipeline of redis commands, starts promises to handle the responses, and immediately returns without calling await.
+ */
 const runNextPipeline = async (): Promise<void> => {
-  // add to pipeline: move at least 5 tasks from processing queue to waiting queue
+  // add to end of pipeline: move at least 5 tasks from waiting queue to processing queue.
   const numTasksToMove = Math.max(5, redis.pipeline.length);
   for (let i = 0; i < numTasksToMove; i++) {
     redis.pipeline.lmove(
@@ -79,39 +88,78 @@ const runNextPipeline = async (): Promise<void> => {
   }
 
   // execute pipeline and get new task IDs to process
-  const taskPromises = [];
+  const taskPromises: Promise<void>[] = [];
+  const inferenceResultPromises: {
+    resolver: (result: string | null) => void;
+    result: string | null;
+  }[] = [];
   const results = await redis.pipeline.exec();
-  for (let i = 0; i < numTasksToMove; i++) {
+  for (let i = 0; i < results.length; i++) {
+    // handle ignored result
+    if (i in redis.ignoredPipelineIdxs) continue;
     const [err, result] = results[results.length - i - 1];
-    if (err != null || result == null) continue;
+
+    // handle inference request result
+    if (i in redis.inferenceResultPromiseResolvers) {
+      inferenceResultPromises.push({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+        resolver: redis.inferenceResultPromiseResolvers[i],
+        result: result as string | null,
+      });
+      continue;
+    }
+
+    // handle task waiting->processing result
+    if (err != null || result == null || i < results.length - numTasksToMove)
+      continue;
     console.log("Creating promise for taskID: ", result);
     taskPromises.push(processTask(result as number));
   }
 
-  // process the batch of tasks asynchronously
+  // reset pipeline vars
+  redis.inferenceResultPromiseResolvers = {};
+  redis.ignoredPipelineIdxs = [];
+
+  // create a batch of promises
+  const allPromises = new Array(...taskPromises);
+  inferenceResultPromises.forEach(
+    (data: {
+      resolver: (result: string | null) => void;
+      result: string | null;
+    }) => {
+      allPromises.push(
+        new Promise((resolve) => {
+          data.resolver(data.result);
+          resolve();
+        })
+      );
+    }
+  );
+
+  // start the batch of promises and don't await; immediately run the next pipeline
   Promise.all(taskPromises).catch((error) => {
     console.error("Error processing a task: ", error);
   });
 };
 
 const processTask = async (taskID: number): Promise<void> => {
-  // TODO Follow instruction from Notion to run the next stage
+  const runningTask = new RunningTask(
+    taskID,
+    {
+      redis,
+      weaviateClient,
+      sqlClient,
+      neo4jDriver,
+    },
+    rateLimiter
+  );
+  await runningTask.runNextStages();
 
-  // TODO ...
-
-  // TODO get basic data from SQL
-
-  // TODO validate TaskDefinition
-
-  // TODO create new Stage object
-
-  // TODO ... run the stage
-
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve();
-    }, 1);
-  });
+  // return new Promise((resolve) => {
+  //   setTimeout(() => {
+  //     resolve();
+  //   }, 1);
+  // });
 };
 
 const main = () => {
@@ -120,7 +168,7 @@ const main = () => {
     .then(() => {
       Promise.resolve()
         .then(function resolver() {
-          // random chance to restart task queues, just in case a new SQL task wasn't added to the queue
+          // random chance to restart task queues, just in case a new SQL task wasn't added to the waiting queue
           if (Math.random() < 0.001) {
             console.log("Restarting queues...");
             return db

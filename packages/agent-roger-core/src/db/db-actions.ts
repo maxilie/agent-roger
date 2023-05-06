@@ -1,18 +1,21 @@
 import { connection, sqlClient } from "./sql-client";
 import { tasks } from "./sql-schema";
 import { env } from "../env.mjs";
-import { desc, isNull, eq, inArray, and, or } from "drizzle-orm";
+import { desc, isNull, eq, inArray, and } from "drizzle-orm";
 import { z } from "zod";
-import {
-  jsonSchema,
-  type NEW_CHILD_TASK_SCHEMA,
-  TASK_UPDATE_SCHEMA,
-  TASK_BASIC_DATA_SCHEMA,
-} from "./db-types";
 import * as neo4j from "neo4j-driver";
 import { REDIS_TASK_QUEUE, type RedisManager } from "./redis";
 import * as crypto from "crypto";
 import { MAX_UNSYNC_TIME } from "../constants";
+import {
+  type StageData,
+  taskBasicDataSchema,
+  taskUpdateSchema,
+  jsonSchema,
+  stageDataSchema,
+  taskDefinitionSchema,
+  jsonObjSchema,
+} from "../zod-schema";
 
 /**
  *
@@ -81,34 +84,14 @@ export const getActiveTaskIDs = async (): Promise<OutType_getRootTaskIDs> => {
 export const InSchema_getTaskBasicData = z.object({
   taskID: z.number(),
 });
-export const OutSchema_getTaskBasicData = z.object({
-  taskID: z.number(),
-  paused: z.boolean(),
-  success: z.boolean().nullable(),
-  dead: z.boolean(),
-  lastEndedStage: z.number(),
-  lastInteractionMarker: z.string().nullable(),
-  isAbstract: z.boolean(),
-  parentID: z.number().nullable(),
-  taskDefinition: jsonSchema,
-  initialInputFields: jsonSchema.nullable(),
-  initialContextFields: jsonSchema.nullable(),
-  initialContextSummary: z.string().nullable(),
-  timeCreated: z.date(),
-  timeLastUpdated: z.date(),
-  resultData: jsonSchema.nullable(),
-  runtimeErrors: jsonSchema.nullable(),
-});
-export const OutSchema_getTaskBasicDataPlus = OutSchema_getTaskBasicData.merge(
+export const OutSchema_getTaskBasicDataPlus = taskBasicDataSchema.merge(
   z.object({
     previousStageData: jsonSchema.nullable(),
     currentStageData: jsonSchema.nullable(),
   })
 );
 export type InType_getTaskBasicData = z.infer<typeof InSchema_getTaskBasicData>;
-export type OutType_getTaskBasicData = z.infer<
-  typeof OutSchema_getTaskBasicData
->;
+export type OutType_getTaskBasicData = z.infer<typeof taskBasicDataSchema>;
 export type OutType_getTaskBasicDataPlus = z.infer<
   typeof OutSchema_getTaskBasicDataPlus
 >;
@@ -280,7 +263,7 @@ export const getTaskBasicData = async (
 export const InSchema_getTaskBasicDatas = z.object({
   taskIDs: z.array(z.number().min(1)),
 });
-export const OutSchema_getTaskBasicDatas = z.array(OutSchema_getTaskBasicData);
+export const OutSchema_getTaskBasicDatas = z.array(taskBasicDataSchema);
 export type InType_getTaskBasicDatas = z.infer<
   typeof InSchema_getTaskBasicDatas
 >;
@@ -314,7 +297,9 @@ export const getTaskBasicDatas = async (
       })
       .from(tasks)
       .where(inArray(tasks.taskID, input.taskIDs));
-    return results ? OutSchema_getTaskBasicDatas.parse(results) : [];
+    return results && results.length
+      ? OutSchema_getTaskBasicDatas.parse(results)
+      : [];
   } catch (e) {
     return [];
   }
@@ -332,15 +317,8 @@ export const InSchema_getTaskStageNData = z.object({
   taskID: z.number(),
   stageN: z.number().min(0).max(23),
 });
-
-export const OutSchema_getTaskStageNData = z.object({
-  stageNData: jsonSchema.nullable(),
-});
 export type InType_getTaskStageNData = z.infer<
   typeof InSchema_getTaskStageNData
->;
-export type OutType_getTaskStageNData = z.infer<
-  typeof OutSchema_getTaskStageNData
 >;
 
 const nToStageNColumn = new Map<
@@ -397,7 +375,7 @@ const nToStageNColumn = new Map<
 ]);
 export const getTaskStageNData = async (
   input: InType_getTaskStageNData
-): Promise<OutType_getTaskStageNData | null> => {
+): Promise<StageData | null> => {
   try {
     if (InSchema_getTaskStageNData.safeParse(input).success) {
       return null;
@@ -408,9 +386,7 @@ export const getTaskStageNData = async (
       })
       .from(tasks)
       .where(eq(tasks.taskID, input.taskID));
-    return results
-      ? OutSchema_getTaskStageNData.parse({ stageNData: results[0] })
-      : null;
+    return results && results.length ? stageDataSchema.parse(results[0]) : null;
   } catch (e) {
     return null;
   }
@@ -434,7 +410,7 @@ export const getTaskStageNData = async (
 
 export const InSchema_saveTaskData = z.object({
   taskID: z.number().min(1),
-  newFields: TASK_UPDATE_SCHEMA,
+  newFields: taskUpdateSchema,
 });
 export type InType_saveTaskData = z.infer<typeof InSchema_saveTaskData>;
 export const saveTaskData = async (
@@ -615,11 +591,10 @@ export const createRootTask = async (
  */
 
 export const InSchema_createChildTask = z.object({
-  isAbstract: z.union([z.literal(true), z.literal(false)]),
   parentID: z.number(),
-  taskDefinition: jsonSchema,
-  initialInputFields: jsonSchema.nullish(),
-  initialContextFields: jsonSchema.nullish(),
+  taskDefinition: taskDefinitionSchema,
+  initialInputFields: jsonObjSchema.nullish(),
+  initialContextFields: jsonObjSchema.nullish(),
   initialContextSummary: z.string().nullish(),
 });
 export const OutSchema_createChildTask = z.number().nullable().promise();
@@ -633,7 +608,7 @@ export const createChildTask = async (
   // save to sql
   const newTaskID: string = (
     await sqlClient.insert(tasks).values({
-      isAbstract: input.isAbstract,
+      isAbstract: input.taskDefinition.isAbstract,
       parentID: input.parentID,
       taskDefinition: input.taskDefinition,
       ...(input.initialInputFields
@@ -844,7 +819,7 @@ export const OutSchema_getTaskTree = z
         target: z.number(),
       })
     ),
-    tasks: z.array(TASK_BASIC_DATA_SCHEMA),
+    tasks: z.array(taskBasicDataSchema),
   })
   .promise();
 export type InType_getTaskTree = z.infer<typeof InSchema_getTaskTree>;
