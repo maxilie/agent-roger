@@ -40,9 +40,6 @@
     "tslib": "^2.5.0",
     "zod": "3.21.4"
   },
-  "peerDependencies": {
-    "agent-roger-core": "workspace:1.0.0"
-  },
   "devDependencies": {
     "@agent-roger/eslint-config-base": "workspace:^",
     "@clerk/themes": "^1.6.3",

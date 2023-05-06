@@ -6,6 +6,7 @@ export const tasksRouter = createTRPCRouter({
   // returns N most recently updated root nodes
   rootTaskIDs: protectedProcedure
     .input(z.object({ n: z.number().min(1).default(20) }))
+    .output(z.array(z.number()).nullable())
     .query(async ({ input }) => {
       return await db.getRootTaskIDs(input);
     }),
@@ -13,14 +14,16 @@ export const tasksRouter = createTRPCRouter({
   // returns task data for the specified ID
   getTaskBasicData: protectedProcedure
     .input(z.object({ taskID: z.number().nullish() }))
+    .output(schema.output.getTaskBasicData.nullable())
     .query(async ({ input }) => {
-      if (input == undefined || input == null) return null;
+      if (input?.taskID == null) return null;
       return await db.getTaskBasicData({ taskID: input.taskID ?? undefined });
     }),
 
   // returns task data for the specified IDs
   getTaskBasicDatas: protectedProcedure
     .input(z.object({ taskIDs: z.array(z.number()) }))
+    .output(schema.output.getTaskBasicDatas)
     .query(async ({ input }) => {
       return await db.getTaskBasicDatas(input);
     }),
@@ -41,6 +44,7 @@ export const tasksRouter = createTRPCRouter({
   // creates a new root task
   createRootTask: protectedProcedure
     .input(schema.input.createRootTask)
+    .output(schema.output.createRootTask.nullable())
     .mutation(async ({ input }) => {
       let res = null;
       await db.withNeo4jDriver(async (neo4jDriver) => {
@@ -54,6 +58,7 @@ export const tasksRouter = createTRPCRouter({
   // creates a new child task
   createChildTask: protectedProcedure
     .input(schema.input.createChildTask)
+    .output(schema.output.createChildTask.nullable())
     .mutation(async ({ input }) => {
       let res = null;
       await db.withNeo4jDriver(async (neo4jDriver) => {
@@ -67,12 +72,13 @@ export const tasksRouter = createTRPCRouter({
   // returns nodeIDs=[rootTaskID, ...descendentIDs], links[{source, target}], tasks: TaskBasicData[]
   getTaskTree: protectedProcedure
     .input(schema.input.getTaskTree)
+    .output(schema.output.getTaskTree)
     .query(async ({ input }) => {
       let res = null;
       await db.withNeo4jDriver(async (neo4jDriver) => {
         res = await db.getTaskTree(input, neo4jDriver);
       });
-      return res;
+      return res || { taskIDs: [], links: [], tasks: [] };
     }),
 });
 

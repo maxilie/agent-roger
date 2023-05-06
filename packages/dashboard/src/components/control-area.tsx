@@ -14,15 +14,17 @@ import {
 } from "lucide-react";
 import { useState, type FC, useReducer } from "react";
 import { Button } from "~/components/ui/button";
+import { schema } from "agent-roger-core";
 
 export type SelectedTaskProps = {
+  // task definition
   taskID: number | null;
   parentID: number | null;
-  // task definition
-  taskType: string;
-  input: string;
+  isAbstract: boolean;
+  taskDefinition: string;
+  initialInputFields: string;
+  initialContextFields: string;
   initialContextSummary: string;
-  generateSubTasksStageIdx: number | null;
   // status
   paused: boolean | null;
   success: boolean | null;
@@ -30,15 +32,7 @@ export type SelectedTaskProps = {
   // timestamps
   timeCreated: Date;
   timeLastUpdated: Date;
-  // hard-coded fields
-  semanticContextQueries: string;
-  keywordContextQueries: string;
-  semanticQueryEmbeddings: string;
-  rawContext: string;
-  contextSummary: string;
-  stepsAndSuccessCriteria: string;
-  subTasksSummary: string;
-  validationSummary: string;
+  // result data
   resultData: string;
   runtimeErrors: string;
   // stage data
@@ -120,7 +114,8 @@ export const ControlArea = (
     selectedRootTaskID: number | undefined;
     setSelectedRootTaskID: (val: number) => void;
     createNewTaskFn: (params: {
-      inputJSONString: string;
+      initialInputFieldsStr: string;
+      initialContextFieldsStr: string;
       initialContextSummary: string;
     }) => Promise<void>;
     saveTaskFn: (taskData: SelectedTaskProps) => Promise<void>;
@@ -190,20 +185,13 @@ export const ControlArea = (
                 paused={props.paused}
                 success={props.success}
                 dead={props.dead}
-                taskType={props.taskType}
-                input={props.input}
+                isAbstract={props.isAbstract}
+                taskDefinition={props.taskDefinition}
+                initialInputFields={props.initialInputFields}
+                initialContextFields={props.initialContextFields}
                 initialContextSummary={props.initialContextSummary}
-                generateSubTasksStageIdx={props.generateSubTasksStageIdx}
                 timeCreated={props.timeCreated}
                 timeLastUpdated={props.timeLastUpdated}
-                semanticContextQueries={props.semanticContextQueries}
-                keywordContextQueries={props.keywordContextQueries}
-                semanticQueryEmbeddings={props.semanticQueryEmbeddings}
-                rawContext={props.rawContext}
-                contextSummary={props.contextSummary}
-                stepsAndSuccessCriteria={props.stepsAndSuccessCriteria}
-                subTasksSummary={props.subTasksSummary}
-                validationSummary={props.validationSummary}
                 resultData={props.resultData}
                 runtimeErrors={props.runtimeErrors}
                 stage0Data={props.stage0Data}
@@ -247,20 +235,31 @@ export const ControlArea = (
 
 const CreateNewTask: FC<{
   createNewTaskFn: (params: {
-    inputJSONString: string;
+    initialInputFieldsStr: string;
+    initialContextFieldsStr: string;
     initialContextSummary: string;
   }) => Promise<void>;
   cancelFn: () => void;
 }> = (props) => {
-  const [input, setInput] = useState("");
+  const DEFAULT_INPUT_EXAMPLE = JSON.stringify(
+    { taskDescription: "", someExtraInstruction: "" },
+    null,
+    2
+  );
+  const [initialInputFieldsStr, setInitialInputFieldsStr] = useState(
+    DEFAULT_INPUT_EXAMPLE
+  );
+  const [initialContextFieldsStr, setInitialContextFieldsStr] = useState("");
   const [initialContextSummary, setInitialContextSummary] = useState("");
 
   const handleSubmit = async () => {
     await props.createNewTaskFn({
-      inputJSONString: input,
+      initialInputFieldsStr,
+      initialContextFieldsStr,
       initialContextSummary,
     });
-    setInput("");
+    setInitialInputFieldsStr(DEFAULT_INPUT_EXAMPLE);
+    setInitialContextFieldsStr("");
     setInitialContextSummary("");
     props.cancelFn();
   };
@@ -275,13 +274,37 @@ const CreateNewTask: FC<{
       </button>
       <h2 className="mb-4 text-lg font-bold text-white">New Root Task</h2>
       <div className="mb-4">
+        <label className="mb-2 block text-sm text-gray-300">Input Fields</label>
+        <textarea
+          className="w-full resize-y rounded bg-gray-700 p-2 text-white"
+          value={initialInputFieldsStr}
+          onChange={(e) => setInitialInputFieldsStr(e.target.value)}
+          onBlur={(e) => {
+            try {
+              const valAsObject = schema.jsonObj.parse(
+                JSON.parse(e.target.value)
+              );
+              setInitialInputFieldsStr(JSON.stringify(valAsObject, null, 2));
+            } catch (ignored) {}
+          }}
+        />
+      </div>
+      <div className="mb-4">
         <label className="mb-2 block text-sm text-gray-300">
-          Input Command or Question
+          Context Fields (optional)
         </label>
         <textarea
           className="w-full resize-y rounded bg-gray-700 p-2 text-white"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
+          value={initialContextFieldsStr}
+          onChange={(e) => setInitialContextFieldsStr(e.target.value)}
+          onBlur={(e) => {
+            try {
+              const valAsObject = schema.jsonObj.parse(
+                JSON.parse(e.target.value)
+              );
+              setInitialContextFieldsStr(JSON.stringify(valAsObject, null, 2));
+            } catch (ignored) {}
+          }}
         />
       </div>
       <div className="mb-4">
@@ -303,7 +326,7 @@ const CreateNewTask: FC<{
           Cancel
         </Button>
         <Button
-          disabled={input.length < 5}
+          disabled={initialInputFieldsStr.trim().length < 5}
           variant={"green"}
           // eslint-disable-next-line @typescript-eslint/no-misused-promises
           onClick={() => handleSubmit()}
@@ -321,31 +344,19 @@ const SelectedTask: FC<
     saveTaskFn: (taskProps: SelectedTaskProps) => Promise<void>;
   } & SelectedTaskProps
 > = (props) => {
-  const [userInput, setUserInput] = useState(props.input);
+  const [userInitialInputFields, setUserInitialInputFields] = useState(
+    props.initialInputFields
+  );
+  const [userInitialContextFields, setUserInitialContextFields] = useState(
+    props.initialInputFields
+  );
   const [userInitialContextSummary, setUserInitialContextSummary] = useState(
     props.initialContextSummary
   );
-  const [userSemanticContextQueries, setUserSemanticContextQueries] = useState(
-    props.semanticContextQueries
-  );
-  const [userKeywordContextQueries, setUserKeywordContextQueries] = useState(
-    props.keywordContextQueries
-  );
-  const [userSemanticQueryEmbeddings, setUserSemanticQueryEmbeddings] =
-    useState(props.semanticQueryEmbeddings);
-  const [userRawContext, setUserRawContext] = useState(props.rawContext);
-  const [userContextSummary, setUserContextSummary] = useState(
-    props.contextSummary
-  );
-  const [userStepsAndSuccessCriteria, setUserStepsAndSuccessCriteria] =
-    useState(props.stepsAndSuccessCriteria);
-  const [userSubTasksSummary, setUserSubTasksSummary] = useState(
-    props.subTasksSummary
-  );
-  const [userValidationSummary, setUserValidationSummary] = useState(
-    props.validationSummary
-  );
   const [userResultData, setUserResultData] = useState(props.resultData);
+  const [userRuntimeErrors, setUserRuntimeErrors] = useState(
+    props.runtimeErrors
+  );
   const [userStage0Data, setUserStage0Data] = useState(props.stage0Data);
   const [userStage1Data, setUserStage1Data] = useState(props.stage1Data);
   const [userStage2Data, setUserStage2Data] = useState(props.stage2Data);
@@ -371,12 +382,18 @@ const SelectedTask: FC<
   const [userStage22Data, setUserStage22Data] = useState(props.stage22Data);
   const [userStage23Data, setUserStage23Data] = useState(props.stage23Data);
 
+  // create a task title
+  const firstInputField: string =
+    (props.initialInputFields.includes(":") &&
+    props.initialInputFields.split(":").length
+      ? props.initialInputFields.split(":")[1]
+      : "Task With No Input Fields") ?? "Task With No Input Fields";
   const taskTitle: string =
-    props.input && props.input.length > 20
-      ? props.input.split(" ").slice(0, 8).join(" ") + "..."
-      : props.input
-      ? props.input
-      : "Task With No Input Field";
+    firstInputField.length > 50
+      ? firstInputField.split(" ").slice(0, 50).join(" ") + "..."
+      : firstInputField;
+
+  // create a task status
   let status = "Running";
   let statusIcon = <Loader className="h-6 w-6 text-blue-500" />;
   if (props.dead) {
@@ -393,14 +410,48 @@ const SelectedTask: FC<
     statusIcon = <PauseCircle className="h-6 w-6 text-yellow-500" />;
   }
 
+  // create a task type
+  let taskStagesStr = "";
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+    taskStagesStr = JSON.parse(props.taskDefinition)
+      .stagePresets.join(", ")
+      .toLowerCase();
+  } catch (ignored) {}
+  let taskType = "Helper Sub-Task";
+  if (!props.parentID) taskType = "Root Task";
+  else if (props.isAbstract) taskType = "Abstract Task";
+  else if (taskStagesStr.length) {
+    if (
+      taskStagesStr.includes("operate") &&
+      taskStagesStr.includes("browser")
+    ) {
+      taskType = "Operate Browser Task";
+    } else if (
+      taskStagesStr.includes("execute") &&
+      taskStagesStr.includes("shell")
+    ) {
+      taskType = "Execute Shell Task";
+    } else if (
+      taskStagesStr.includes("execute") &&
+      taskStagesStr.includes("typescript")
+    ) {
+      taskType = "Execute TypeScript Task";
+    } else if (taskStagesStr.includes("generatejson")) {
+      taskType = "Generate JSON Content Task";
+    }
+  }
+
   return (
     <div className="rounded bg-gray-800 p-4">
       <div className="mt-3 text-center">
         <h2 className="mb-4 text-lg font-semibold text-white">{taskTitle}</h2>
-        <p className="text-sm text-gray-300">{props.taskType}</p>
+        <p className="text-sm text-gray-300">{taskType}</p>
       </div>
+
+      {/* top area */}
       <div className="mb-4 flex items-center justify-between align-middle">
-        {/* id and date*/}
+        {/* id and date */}
         <div className="mb-3 mt-3 flex flex-col">
           <div className="mb-1 flex flex-row align-middle">
             <p className="text-sm text-gray-50">#</p>
@@ -417,6 +468,8 @@ const SelectedTask: FC<
           <p className="text-md ml-2 text-zinc-200">{status}</p>
         </div>
       </div>
+
+      {/* pause/resume buttons */}
       <div className="mb-4 flex flex-row justify-between">
         {!props.paused && (
           <>
@@ -439,28 +492,38 @@ const SelectedTask: FC<
           </>
         )}
       </div>
-      <div className="mb-4 flex flex-col">
-        <button className="w-full rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600">
-          Restart Tree Here
-        </button>
-        <p className="mb-1 mt-3 text-sm text-slate-200">
-          Restarting here will:
-        </p>
-        <p className=" text-sm text-slate-200">
-          1) Mark this task and its descendents as dead.
-        </p>
-        <p className=" text-sm text-slate-200">
-          2) Re-run this task with the latest saved input and contextSummary
-          (you can edit these fields down below).
-        </p>
-        <p className="text-sm text-slate-200">
-          3) Undo any actions taken by ancestors after this task was created.
-        </p>
-        <p className=" mt-1 text-sm text-slate-200">
-          When this task is complete, it will propogate back up to the root task
-          like normal.
-        </p>
-      </div>
+
+      {/* restart button */}
+      {props.isAbstract && (
+        <div className="mb-4 flex flex-col">
+          <button className="w-full rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600">
+            Restart Tree Here
+          </button>
+          <p className="mb-1 mt-3 text-sm text-slate-200">
+            Restarting here will:
+          </p>
+          <p className=" text-sm text-slate-200">
+            1) Mark this task and its descendents as dead.
+          </p>
+          <p className=" text-sm text-slate-200">
+            2) Re-run this task with the latest saved initialInputFields,
+            initialContextFields, and initialContextSummary (you can edit these
+            fields down below).
+          </p>
+          <p className="text-sm text-slate-200">
+            3) Undo any actions taken by ancestors after this task was created.
+          </p>
+          <p className=" mt-1 text-sm text-slate-200">
+            When this task is complete, it will propogate back up to the root
+            task and re-run any previously run ancestor task logic that depends
+            on it (i.e. re-runs ancestor task stages after generateSubTasks).
+          </p>
+        </div>
+      )}
+
+      {/* data fields */}
+
+      {/* TODO: press a button to setStageXLoaded() */}
     </div>
   );
 };

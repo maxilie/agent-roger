@@ -5,8 +5,8 @@ const TASK_PRESETS = {
   // TODO tasks for summarizing context and sub-task outputs
   // TODO task_generate_text
   // TODO task_execute_shell
-  // TODO task_execute_typescript
-  // TODO some kind of task to do stuff in a browser
+  // TODO operate_browser
+  // TODO [maybe] task_execute_typescript
 };
 
 export default TASK_PRESETS;

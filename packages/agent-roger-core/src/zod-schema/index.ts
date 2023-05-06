@@ -124,10 +124,10 @@ export const newChildTaskSchema = z.object({
 
 // schema for values that can be used to update a task
 export const taskUpdateSchema = z.object({
-  paused: z.boolean().nullish(),
+  paused: z.boolean().default(false),
   success: z.boolean().nullish(),
-  dead: z.boolean().nullish(),
-  lastEndedStage: z.number().nullish(),
+  dead: z.boolean().default(false),
+  lastEndedStage: z.number().default(-1),
   taskDefinition: taskDefinitionSchema.nullish(),
   initialInputFields: jsonObjSchema.nullish(),
   initialContextFields: jsonObjSchema.nullish(),

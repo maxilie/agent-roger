@@ -3035,8 +3035,6 @@ __metadata:
     tslib: ^2.5.0
     typescript: ^5.0.2
     zod: 3.21.4
-  peerDependencies:
-    agent-roger-core: "workspace:1.0.0"
   languageName: unknown
   linkType: soft
 

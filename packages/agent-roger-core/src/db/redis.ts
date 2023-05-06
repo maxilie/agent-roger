@@ -96,11 +96,11 @@ export class RedisManager {
   async getInferenceResult(requestID: string): Promise<string | null> {
     this.pipeline.get(REDIS_TASK_QUEUE.codeLLMInference + "_" + requestID);
     const pipelineIdx = this.pipeline.length - 1;
-    let promiseResolver: (result: string | null) => void;
     const resultPromise = new Promise<string | null>((resolve) => {
-      promiseResolver = resolve;
+      this.inferenceResultPromiseResolvers[pipelineIdx] = (
+        result: string | null
+      ) => resolve(result);
     });
-    this.inferenceResultPromiseResolvers[pipelineIdx] = promiseResolver;
     return resultPromise;
   }
 }

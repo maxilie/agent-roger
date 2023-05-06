@@ -26,7 +26,14 @@ import {
   getActiveTaskIDs,
   InSchema_deleteTaskTree,
   deleteTaskTree,
+  OutSchema_createChildTask,
+  OutSchema_getRootTaskIDs,
+  OutSchema_getTaskBasicDatas,
   getTaskStageNData,
+  OutSchema_getTaskTree,
+  OutSchema_createRootTask,
+  OutSchema_getTaskBasicDataPlus,
+  OutSchema_getTaskStageNData,
 } from "./db";
 import { AI_MODELS, AiModel, MAX_UNSYNC_TIME } from "./constants";
 import {
@@ -106,6 +113,15 @@ interface Schema {
     getTaskTreeIDs: typeof InSchema_getTaskTreeIDs;
     deleteTaskTree: typeof InSchema_deleteTaskTree;
   };
+  output: {
+    createRootTask: typeof OutSchema_createRootTask;
+    createChildTask: typeof OutSchema_createChildTask;
+    getRootTaskIDs: typeof OutSchema_getRootTaskIDs;
+    getTaskBasicData: typeof OutSchema_getTaskBasicDataPlus;
+    getTaskBasicDatas: typeof OutSchema_getTaskBasicDatas;
+    getTaskStageNData: typeof OutSchema_getTaskStageNData;
+    getTaskTree: typeof OutSchema_getTaskTree;
+  };
   json: typeof jsonSchema;
   jsonObj: typeof jsonObjSchema;
   taskDefinition: typeof taskDefinitionSchema;
@@ -130,6 +146,15 @@ const schema: Schema = {
     getTaskTree: InSchema_getTaskTree,
     getTaskTreeIDs: InSchema_getTaskTreeIDs,
     deleteTaskTree: InSchema_deleteTaskTree,
+  },
+  output: {
+    createRootTask: OutSchema_createRootTask,
+    createChildTask: OutSchema_createChildTask,
+    getRootTaskIDs: OutSchema_getRootTaskIDs,
+    getTaskBasicData: OutSchema_getTaskBasicDataPlus,
+    getTaskBasicDatas: OutSchema_getTaskBasicDatas,
+    getTaskStageNData: OutSchema_getTaskStageNData,
+    getTaskTree: OutSchema_getTaskTree,
   },
   json: jsonSchema,
   jsonObj: jsonObjSchema,

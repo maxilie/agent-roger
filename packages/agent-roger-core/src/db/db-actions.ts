@@ -8,7 +8,6 @@ import { REDIS_TASK_QUEUE, type RedisManager } from "./redis";
 import * as crypto from "crypto";
 import { MAX_UNSYNC_TIME } from "../constants";
 import {
-  type StageData,
   taskBasicDataSchema,
   taskUpdateSchema,
   jsonSchema,
@@ -206,43 +205,26 @@ export const getTaskBasicData = async (
         { as: "object" }
       )
     ).rows[0];
+    const rowObj = jsonObjSchema.parse(row);
     const taskData = {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      taskID: row[tasks.taskID.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      paused: row[tasks.paused.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      success: row[tasks.success.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      dead: row[tasks.dead.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      lastEndedStage: row[tasks.lastEndedStage.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      lastInteractionMarker: row[tasks.lastInteractionMarker.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      isAbstract: row[tasks.isAbstract.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      parentID: row[tasks.parentID.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      taskDefinition: row[tasks.taskDefinition.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      initialInputFields: row[tasks.initialInputFields.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      initialContextFields: row[tasks.initialContextFields.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      initialContextSummary: row[tasks.initialContextSummary.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      timeCreated: row[tasks.timeCreated.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      timeLastUpdated: row[tasks.timeLastUpdated.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      resultData: row[tasks.resultData.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      runtimeErrors: row[tasks.runtimeErrors.name],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      previousStageData: row["previousStageData"],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      currentStageData: row["currentStageData"],
+      taskID: rowObj[tasks.taskID.name],
+      paused: rowObj[tasks.paused.name],
+      success: rowObj[tasks.success.name],
+      dead: rowObj[tasks.dead.name],
+      lastEndedStage: rowObj[tasks.lastEndedStage.name],
+      lastInteractionMarker: rowObj[tasks.lastInteractionMarker.name],
+      isAbstract: rowObj[tasks.isAbstract.name],
+      parentID: rowObj[tasks.parentID.name],
+      taskDefinition: rowObj[tasks.taskDefinition.name],
+      initialInputFields: rowObj[tasks.initialInputFields.name],
+      initialContextFields: rowObj[tasks.initialContextFields.name],
+      initialContextSummary: rowObj[tasks.initialContextSummary.name],
+      timeCreated: rowObj[tasks.timeCreated.name],
+      timeLastUpdated: rowObj[tasks.timeLastUpdated.name],
+      resultData: rowObj[tasks.resultData.name],
+      runtimeErrors: rowObj[tasks.runtimeErrors.name],
+      previousStageData: rowObj["previousStageData"],
+      currentStageData: rowObj["currentStageData"],
     };
     return OutSchema_getTaskBasicDataPlus.parse(taskData);
   } catch (e) {
@@ -321,6 +303,9 @@ export type InType_getTaskStageNData = z.infer<
   typeof InSchema_getTaskStageNData
 >;
 
+export const OutSchema_getTaskStageNData = stageDataSchema.nullable();
+export type OutType_getStageNData = z.infer<typeof OutSchema_getTaskStageNData>;
+
 const nToStageNColumn = new Map<
   number,
   | typeof tasks.stage0Data
@@ -375,14 +360,14 @@ const nToStageNColumn = new Map<
 ]);
 export const getTaskStageNData = async (
   input: InType_getTaskStageNData
-): Promise<StageData | null> => {
+): Promise<OutType_getStageNData> => {
   try {
     if (InSchema_getTaskStageNData.safeParse(input).success) {
       return null;
     }
     const results = await sqlClient
       .select({
-        stageNData: nToStageNColumn.get(input.stageN),
+        stageNData: nToStageNColumn.get(input.stageN) ?? tasks.stage0Data,
       })
       .from(tasks)
       .where(eq(tasks.taskID, input.taskID));
@@ -496,7 +481,7 @@ export const InSchema_createRootTask = z.object({
   initialContextFields: jsonSchema.nullish(),
   initialContextSummary: z.string().nullish(),
 });
-const OutSchema_createRootTask = z.number();
+export const OutSchema_createRootTask = z.number();
 type InType_createRootTask = z.infer<typeof InSchema_createRootTask>;
 type OutType_createRootTask = z.infer<typeof OutSchema_createRootTask>;
 export const createRootTask = async (
@@ -597,14 +582,14 @@ export const InSchema_createChildTask = z.object({
   initialContextFields: jsonObjSchema.nullish(),
   initialContextSummary: z.string().nullish(),
 });
-export const OutSchema_createChildTask = z.number().nullable().promise();
+export const OutSchema_createChildTask = z.number();
 export type InType_createChildTask = z.infer<typeof InSchema_createChildTask>;
 export type OutType_createChildTask = z.infer<typeof OutSchema_createChildTask>;
 export const createChildTask = async (
   input: InType_createChildTask,
   neo4jDriver: neo4j.Driver,
   redis: RedisManager
-) => {
+): Promise<OutType_createChildTask | null> => {
   // save to sql
   const newTaskID: string = (
     await sqlClient.insert(tasks).values({
@@ -808,27 +793,25 @@ export const deleteTaskTree = async (
  */
 
 export const InSchema_getTaskTree = z.object({
-  rootTaskID: z.number().min(1),
+  rootTaskID: z.number().nullish(),
 });
-export const OutSchema_getTaskTree = z
-  .object({
-    taskIDs: z.array(z.number()),
-    links: z.array(
-      z.object({
-        source: z.number(),
-        target: z.number(),
-      })
-    ),
-    tasks: z.array(taskBasicDataSchema),
-  })
-  .promise();
+export const OutSchema_getTaskTree = z.object({
+  taskIDs: z.array(z.number()),
+  links: z.array(
+    z.object({
+      source: z.number(),
+      target: z.number(),
+    })
+  ),
+  tasks: z.array(taskBasicDataSchema),
+});
 export type InType_getTaskTree = z.infer<typeof InSchema_getTaskTree>;
 export type OutType_getTaskTree = z.infer<typeof OutSchema_getTaskTree>;
 export const getTaskTree = async (
   input: InType_getTaskTree,
   neo4jDriver: neo4j.Driver
 ): Promise<OutType_getTaskTree> => {
-  if (!!!input.rootTaskID) {
+  if (input.rootTaskID == null || input.rootTaskID == undefined) {
     return { taskIDs: [], links: [], tasks: [] };
   }
   // get neo4j connection

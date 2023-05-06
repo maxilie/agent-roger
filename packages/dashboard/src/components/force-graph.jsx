@@ -29,7 +29,7 @@ const ForceGraph = (props) => {
   const isLinkHighlighted = useCallback(
     (link) => {
       if (highlightNodeIDs.size == 0) {
-        return link.targetNode.type == "ARBITRARY_TASK";
+        return link.targetNode.isAbstract;
       }
       return (
         highlightNodeIDs.has(link.source.id) ||
@@ -45,7 +45,7 @@ const ForceGraph = (props) => {
         ? "rgba(52, 58, 89, 1)"
         : "rgba(52, 58, 89, 0.8)";
     } else {
-      return link.targetNode.type == "ARBITRARY_TASK" &&
+      return link.targetNode.isAbstract &&
         (highlightNodeIDs.has(link.source) || !highlightNodeIDs.size)
         ? "rgba(48, 54, 82, 0.77)"
         : "rgba(252, 254, 255, 0.1)";
@@ -89,8 +89,8 @@ const ForceGraph = (props) => {
       const [color, borderColor, textColor] = getColor(node);
       const r = NODE_REL_SIZE;
 
-      // circle for base tasks
-      if (node.type == "ROOT" || node.type == "ARBITRARY_TASK") {
+      // circle for abstract tasks
+      if (node.isAbstract) {
         ctx.beginPath();
         // innerRadius, outerRadius, startAngle, endAngle
         ctx.arc(node.x, node.y, r * 1.1, 0, 2 * Math.PI, false);
@@ -104,7 +104,7 @@ const ForceGraph = (props) => {
       }
 
       // triangle for execution tasks
-      else if (node.type == "EXECUTE_FUNCTION") {
+      else if (node.isExecution) {
         const triangleR = r * 1;
         ctx.fillStyle = borderColor;
         ctx.beginPath();
@@ -147,7 +147,7 @@ const ForceGraph = (props) => {
       ctx.fillText(
         node.idxInSiblingGroup,
         node.x,
-        node.y + (node.type == "EXECUTE_FUNCTION" ? 0.6 : 0)
+        node.y + (node.isExecution ? 0.6 : 0)
       );
     },
     [highlightNodeIDs]
@@ -173,9 +173,7 @@ const ForceGraph = (props) => {
       }
       linkColor={(link) => getLinkColor(link)}
       linkWidth={(link) =>
-        link.targetNode.type == "ARBITRARY_TASK" && !link.targetNode.dead
-          ? 2
-          : 1
+        link.targetNode.isAbstract && !link.targetNode.dead ? 2 : 1
       }
       linkCurvature={0}
       d3AlphaMin={0.01}
