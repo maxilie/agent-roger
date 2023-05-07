@@ -63,12 +63,18 @@ const initialize = async () => {
     neo4j.auth.basic(env.NEO4J_USER, env.NEO4J_PASS)
   );
   await neo4jDriver.getServerInfo();
+  console.log("connected to neo4j");
 
   // connect to redis & init pipeline
   redis = new RedisManager();
+  console.log("connected to redis");
 
   // restart task queue
   const unfinishedTaskIDs = await db.getActiveTaskIDs();
+  console.log(
+    "initializing first task pipeline with task IDs: ",
+    unfinishedTaskIDs
+  );
   await redis.restartQueues(unfinishedTaskIDs || []);
 };
 
