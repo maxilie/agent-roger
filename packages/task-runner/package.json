@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "description": "",
   "type": "module",
-  "main": "build/server.js",
+  "main": "build/src/server.js",
   "scripts": {
     "lint": "eslint .",
     "build": "tsc",
-    "start": "node build/server.js"
+    "start": "node build/src/server.js"
   },
   "dependencies": {
     "@planetscale/database": "1.7.0",

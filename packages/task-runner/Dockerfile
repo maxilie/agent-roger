@@ -26,8 +26,7 @@ COPY ./libs/weaviate-ts-client/ ./libs/weaviate-ts-client/
 COPY ./packages/agent-roger-core/ ./packages/agent-roger-core/
 COPY ./packages/task-runner/ ./packages/task-runner/
 
-RUN yarn workspace weaviate-ts-client2 build
-RUN yarn workspace agent-roger-core build
+RUN yarn run build:core
 RUN yarn workspace agent-roger-task-runner build
 
 CMD ["yarn", "workspace", "agent-roger-task-runner", "start"]
