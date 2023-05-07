@@ -22,11 +22,11 @@ const config = {
     return config;
   },
 
-  transpilePackages: [
-    "../task-runner",
-    "../agent-roger-core",
-    "../../libs/@eslint-config-base",
-  ],
+  // transpilePackages: [
+  //   "../task-runner",
+  //   "../agent-roger-core",
+  //   "../../libs/@eslint-config-base",
+  // ],
 };
 
 export default config;
