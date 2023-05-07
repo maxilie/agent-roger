@@ -3,7 +3,7 @@
  * This is especially useful for Docker builds.
  */
 !process.env.SKIP_ENV_VALIDATION &&
-  (await import("../agent-roger-core/dist/src/env.mjs"));
+  (await import("agent-roger-core/dist/src/env.mjs"));
 
 /** @type {import("next").NextConfig} */
 const config = {
@@ -19,4 +19,13 @@ const config = {
     return config;
   },
 };
-export default config;
+
+const sharedPackages = [
+  "../task-runner",
+  "../agent-roger-core",
+  "../../libs/@eslint-config-base",
+];
+
+const withTM = require("next-transpile-modules")(sharedPackages);
+
+export default withTM(config);
