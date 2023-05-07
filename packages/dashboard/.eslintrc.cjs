@@ -2,7 +2,7 @@
 const config = {
   extends: ["@agent-roger/eslint-config-base", "next/core-web-vitals"],
   parserOptions: {
-    project: "./tsconfig.json",
+    project: "packages/dashboard/tsconfig.json",
   },
   ignorePatterns: ["src/components/force-graph.jsx"],
 };
