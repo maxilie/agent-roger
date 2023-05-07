@@ -3,7 +3,7 @@
  * This is especially useful for Docker builds.
  */
 !process.env.SKIP_ENV_VALIDATION &&
-  (await import("../agent-roger-core/dist/src/index.js"));
+  (await import("../agent-roger-core/src/env.mjs"));
 // !process.env.SKIP_ENV_VALIDATION &&
 //   (await import("./agent-roger-core/"));
 
