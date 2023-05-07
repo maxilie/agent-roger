@@ -17,7 +17,7 @@ import {
   getActiveTaskIDs,
   deleteTaskTree,
   getTaskStageNData,
-} from "./db";
+} from "./db/index.js";
 import { AI_MODELS, AiModel, MAX_UNSYNC_TIME } from "./constants";
 import {
   type StageFunction,

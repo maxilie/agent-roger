@@ -3,7 +3,7 @@
  * This is especially useful for Docker builds.
  */
 !process.env.SKIP_ENV_VALIDATION &&
-  (await import("agent-roger-core/dist/src/env.mjs"));
+  (await import("../agent-roger-core/dist/src/env.mjs"));
 
 /** @type {import("next").NextConfig} */
 const config = {
