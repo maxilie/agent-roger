@@ -2,11 +2,15 @@
  * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation.
  * This is especially useful for Docker builds.
  */
-!process.env.SKIP_ENV_VALIDATION && (await import("agent-roger-core"));
+!process.env.SKIP_ENV_VALIDATION &&
+  (await import("../agent-roger-core/dist/src/index.js"));
+// !process.env.SKIP_ENV_VALIDATION &&
+//   (await import("./agent-roger-core/"));
 
 /** @type {import("next").NextConfig} */
 const config = {
   reactStrictMode: true,
+
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback.fs = false;
@@ -17,14 +21,12 @@ const config = {
 
     return config;
   },
+
+  transpilePackages: [
+    "../task-runner",
+    "../agent-roger-core",
+    "../../libs/@eslint-config-base",
+  ],
 };
 
-const sharedPackages = [
-  "../task-runner",
-  "../agent-roger-core",
-  "../../libs/@eslint-config-base",
-];
-
-const withTM = require("next-transpile-modules")(sharedPackages);
-
-export default withTM(config);
+export default config;
