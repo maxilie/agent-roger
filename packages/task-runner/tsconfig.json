@@ -3,7 +3,7 @@
     "module": "ESNext",
     "esModuleInterop": true,
     "target": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "nodenext",
     "outDir": "./build",
     "skipLibCheck": true,
     "allowJs": true,

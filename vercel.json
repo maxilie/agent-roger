@@ -4,7 +4,7 @@
       "src": "./package.json",
       "use": "@vercel/next",
       "config": {
-        "buildCommand": "./vercel-build.sh",
+        "buildCommand": "yarn run build:dashboard-prod",
         "outputDirectory": "packages/dashboard/.next"
       }
     }

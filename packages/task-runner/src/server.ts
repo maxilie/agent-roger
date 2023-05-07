@@ -11,8 +11,8 @@ import {
 
 import { connect } from "@planetscale/database";
 import { db, env, REDIS_TASK_QUEUE, RedisManager } from "agent-roger-core";
-import { RunningTask } from "./running-task";
-import { RateLimiter } from "./rate-limiter";
+import { RunningTask } from "./running-task.js";
+import { RateLimiter } from "./rate-limiter.js";
 
 // globals
 const taskRunnerID: string =

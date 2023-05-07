@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build-prod": "next build",
+    "build-prod": "mv .eslintrc.cjs .eslintrc.original.cjs && mv .eslintrc.vercel.cjs .eslintrc.cjs next build",
     "dev": "env-cmd -f ../../.env next dev",
     "lint": "next lint",
     "start": "next start"
