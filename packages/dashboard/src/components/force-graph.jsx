@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useCallback, memo } from "react";
+import { useState, useCallback, memo, useEffect } from "react";
 import { ForceGraph2D } from "react-force-graph";
 
 const NODE_REL_SIZE = 2;
@@ -25,6 +25,10 @@ const ForceGraph = (props) => {
 
     updateHighlight();
   };
+
+  useEffect(() => {
+    setHighlightNodeIDs(new Set());
+  }, [props.nodes]);
 
   const isLinkHighlighted = useCallback(
     (link) => {
@@ -69,7 +73,8 @@ const ForceGraph = (props) => {
 
     let nodeRgb =
       node.status == "success" ? "rgba(119, 240, 101, " : "rgba(84, 132, 227, ";
-    let textColor = node.status == "success" ? darkText : whiteText;
+    let textColor =
+      node.status == ("success" && node.parentID >= 0) ? darkText : whiteText;
     if (node.status == "failed") nodeRgb = "rgba(250, 7, 7, ";
     if (node.status == "paused") nodeRgb = "rgba(227, 170, 84, ";
     if (node.parentID == -1) nodeRgb = "rgba(242, 29, 207, ";

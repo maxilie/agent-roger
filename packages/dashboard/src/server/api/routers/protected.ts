@@ -20,6 +20,15 @@ export const tasksRouter = createTRPCRouter({
       return await db.getTaskBasicData({ taskID: input.taskID ?? undefined });
     }),
 
+  // returns data for a single stage of a task
+  getTaskStageNData: protectedProcedure
+    .input(schema.input.getTaskStageNData)
+    .output(schema.output.getTaskStageNData.nullable())
+    .query(async ({ input }) => {
+      if (input.taskID == null || input.stageN < 0) return null;
+      return await db.getTaskStageNData(input);
+    }),
+
   // returns task data for the specified IDs
   getTaskBasicDatas: protectedProcedure
     .input(z.object({ taskIDs: z.array(z.number()) }))

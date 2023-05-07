@@ -28,7 +28,7 @@ const buttonVariants = cva(
           "bg-green-950 border-2 hover:bg-slate-800 hover:border-opacity-85 border-green-400 text-gray-100",
         red: "bg-red-950 border-2 hover:bg-slate-800 hover:border-opacity-85 border-red-400 text-gray-100",
         subtle:
-          "bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-100",
+          "bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-400 dark:hover:bg-slate-500 dark:text-slate-100",
         ghost:
           "bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 dark:text-slate-100 dark:hover:text-slate-100 data-[state=open]:bg-transparent dark:data-[state=open]:bg-transparent",
         link: "bg-transparent dark:bg-transparent underline-offset-4 hover:underline text-slate-900 dark:text-slate-100 hover:bg-transparent dark:hover:bg-transparent",

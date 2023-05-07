@@ -12,28 +12,11 @@ import {
   connection,
   RedisManager,
   REDIS_TASK_QUEUE,
-  InSchema_saveTaskData,
-  InSchema_createRootTask,
-  InSchema_getRootTaskIDs,
-  InSchema_getTaskBasicData,
-  InSchema_getTaskBasicDatas,
-  InSchema_getTaskStageNData,
-  InSchema_getTaskTree,
-  InSchema_getTaskTreeIDs,
-  InSchema_createChildTask,
   withNeo4jDriver,
   withRedis,
   getActiveTaskIDs,
-  InSchema_deleteTaskTree,
   deleteTaskTree,
-  OutSchema_createChildTask,
-  OutSchema_getRootTaskIDs,
-  OutSchema_getTaskBasicDatas,
   getTaskStageNData,
-  OutSchema_getTaskTree,
-  OutSchema_createRootTask,
-  OutSchema_getTaskBasicDataPlus,
-  OutSchema_getTaskStageNData,
 } from "./db";
 import { AI_MODELS, AiModel, MAX_UNSYNC_TIME } from "./constants";
 import {
@@ -62,6 +45,25 @@ import {
   TaskUpdateData,
   newRootTaskSchema,
   newChildTaskSchema,
+  InSchema_saveTaskData,
+  InSchema_createRootTask,
+  InSchema_getRootTaskIDs,
+  InSchema_getTaskBasicData,
+  InSchema_getTaskBasicDatas,
+  InSchema_getTaskStageNData,
+  InSchema_getTaskTree,
+  InSchema_getTaskTreeIDs,
+  InSchema_createChildTask,
+  InSchema_deleteTaskTree,
+  OutSchema_getTaskTree,
+  OutSchema_createRootTask,
+  OutSchema_getTaskBasicDataPlus,
+  OutSchema_getTaskStageNData,
+  OutSchema_createChildTask,
+  OutSchema_getRootTaskIDs,
+  OutSchema_getTaskBasicDatas,
+  runtimeErrorsSchema,
+  RuntimeErrors,
 } from "./zod-schema/index.js";
 
 interface DB {
@@ -127,6 +129,7 @@ interface Schema {
   taskDefinition: typeof taskDefinitionSchema;
   stageData: typeof stageDataSchema;
   resultData: typeof resultDataSchema;
+  runtimeErrors: typeof runtimeErrorsSchema;
   taskBasicData: typeof taskBasicDataSchema;
   taskData: typeof taskDataSchema;
   updateTask: typeof taskUpdateSchema;
@@ -161,6 +164,7 @@ const schema: Schema = {
   taskDefinition: taskDefinitionSchema,
   stageData: stageDataSchema,
   resultData: resultDataSchema,
+  runtimeErrors: runtimeErrorsSchema,
   taskBasicData: taskBasicDataSchema,
   taskData: taskDataSchema,
   updateTask: taskUpdateSchema,
@@ -204,6 +208,7 @@ export {
   StageFunction,
   StageData,
   ResultData,
+  RuntimeErrors,
   TaskDefinition,
   TaskBasicData,
   TaskData,

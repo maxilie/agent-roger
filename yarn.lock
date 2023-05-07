@@ -3029,6 +3029,7 @@ __metadata:
     react-spinners: ^0.13.8
     superjson: 1.12.2
     tailwind-merge: ^1.12.0
+    tailwind-scrollbar: ^3.0.0
     tailwindcss: ^3.3.0
     tailwindcss-animate: ^1.0.5
     three: ^0.151.3
@@ -10552,6 +10553,15 @@ __metadata:
   version: 1.12.0
   resolution: "tailwind-merge@npm:1.12.0"
   checksum: 5ef323eec1051c4aa9626e29498f6c058dbbb242ca8156aa298de41ada3eda05a8f5f1260a57112c155f63b2e94c4b4ccab5386d60fae54de07aac6d9dbc60e4
+  languageName: node
+  linkType: hard
+
+"tailwind-scrollbar@npm:^3.0.0":
+  version: 3.0.0
+  resolution: "tailwind-scrollbar@npm:3.0.0"
+  peerDependencies:
+    tailwindcss: 3.x
+  checksum: b5e406bcbf62ac25abe81dc6d708a1209c2b636918711e315542845022a9a3a68a0a135c3bb24ae00d07dad3f0725c6587b2fd0b0fb57d20fcc105cf40adb3ca
   languageName: node
   linkType: hard
 

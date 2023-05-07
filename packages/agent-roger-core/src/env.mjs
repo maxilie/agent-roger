@@ -20,7 +20,7 @@ const server = z.object({
   OPENAI_API_KEY: z.string().min(1),
   GPT4_ENABLED: z.boolean(),
   REDIS_HOST: z.string(),
-  REDIS_PORT?: z.number(),
+  REDIS_PORT: z.number(),
   REDIS_PASS: z.string(),
 });
 
@@ -54,9 +54,9 @@ const processEnv = {
   WEAVIATE_BACKUP_DIR: process.env.WEAVIATE_BACKUP_DIR,
   WEAVIATE_HOST: process.env.WEAVIATE_HOST,
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-  GPT4_ENABLED: process.env.GPT4_ENABLED,
+  GPT4_ENABLED: process.env.GPT4_ENABLED == "true" || false,
   REDIS_HOST: process.env.REDIS_HOST,
-  REDIS_PORT: process.env.REDIS_PORT,
+  REDIS_PORT: +process.env.REDIS_PORT,
   REDIS_PASS: process.env.REDIS_PASS,
 };
 
@@ -93,12 +93,13 @@ if (!!process.env.SKIP_ENV_VALIDATION == false) {
       if (typeof prop !== "string") return undefined;
       // Throw a descriptive error if a server-side env var is accessed on the client
       // Otherwise it would just be returning `undefined` and be annoying to debug
-      if (!isServer && !prop.startsWith("NEXT_PUBLIC_"))
-        throw new Error(
-          process.env.NODE_ENV === "production"
-            ? "❌ Attempted to access a server-side environment variable on the client"
-            : `❌ Attempted to access server-side environment variable '${prop}' on the client`
-        );
+      if (!isServer && !prop.startsWith("NEXT_PUBLIC_")) {
+        // throw new Error(
+        //   process.env.NODE_ENV === "production"
+        //     ? "❌ Attempted to access a server-side environment variable on the client"
+        //     : `❌ Attempted to access server-side environment variable '${prop}' on the client`
+        // );
+      }
       return target[/** @type {keyof typeof target} */ (prop)];
     },
   });

@@ -69,7 +69,7 @@ const initialize = async () => {
 
   // restart task queue
   const unfinishedTaskIDs = await db.getActiveTaskIDs();
-  await redis.restartQueues(unfinishedTaskIDs);
+  await redis.restartQueues(unfinishedTaskIDs || []);
 };
 
 /**
@@ -94,6 +94,7 @@ const runNextPipeline = async (): Promise<void> => {
     result: string | null;
   }[] = [];
   const results = await redis.pipeline.exec();
+  if (results == null) return;
   for (let i = 0; i < results.length; i++) {
     // handle ignored result
     if (i in redis.ignoredPipelineIdxs) continue;
@@ -167,7 +168,7 @@ const main = () => {
   initialize()
     .then(() => {
       Promise.resolve()
-        .then(function resolver() {
+        .then(async function resolver(): Promise<void> {
           // random chance to restart task queues, just in case a new SQL task wasn't added to the waiting queue
           if (Math.random() < 0.001) {
             console.log("Restarting queues...");
@@ -175,7 +176,7 @@ const main = () => {
               .getActiveTaskIDs()
               .then((unfinishedTaskIDs) => {
                 redis
-                  .restartQueues(unfinishedTaskIDs)
+                  .restartQueues(unfinishedTaskIDs || [])
                   .then(resolver)
                   .catch(resolver);
               })

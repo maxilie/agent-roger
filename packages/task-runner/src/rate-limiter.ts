@@ -43,7 +43,7 @@ export class RateLimiter {
     }
     const isTokensLimitReached =
       (modelInfo.rateLimits?.tokensPerMinute ?? 0) > 0 &&
-      (tokensUsed >= modelInfo.rateLimits.tokensPerMinute ||
+      (tokensUsed >= (modelInfo.rateLimits?.tokensPerMinute ?? 0) ||
         sharedTokensUsed >= maxSharedTokensPerMin);
 
     // get requests used by this model and all models with shared limits
@@ -62,7 +62,7 @@ export class RateLimiter {
     }
     const isRequestsLimitReached =
       (modelInfo.rateLimits?.requestsPerMinute ?? 0) > 0 &&
-      (requestsMade >= modelInfo.rateLimits.requestsPerMinute ||
+      (requestsMade >= (modelInfo.rateLimits?.requestsPerMinute ?? 0) ||
         sharedRequestsMade >= maxSharedRequestsPerMin);
 
     return isTokensLimitReached || isRequestsLimitReached;

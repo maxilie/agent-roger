@@ -67,7 +67,7 @@ class RunningTask {
   sqlClient: PlanetScaleDatabase;
   neo4jDriver: neo4j.Driver;
   rateLimiter: RateLimiter;
-  taskBasicData: TaskBasicData;
+  taskBasicData: TaskBasicData | null;
   loadedStageData: { [stageIdx: number]: StageData };
   localStageIdx: number;
   stageDataIndicesAffected: Set<number>;
@@ -99,6 +99,9 @@ class RunningTask {
     this.wasPaused = false;
     this.unsavedResultData = null;
     this.unsavedErrors = [];
+    this.localStageIdx = -1;
+    this.startTime = new Date();
+    this.taskBasicData = null;
   }
 
   async runNextStages() {
@@ -181,7 +184,7 @@ class RunningTask {
         } catch (err) {
           // mark error and pause task
           // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-          this.endStageHelper(err);
+          this.endStageHelper(err ?? "Unknown error");
           // save data
           await this.saveOrCleanup();
           // remove from redis queue
@@ -222,6 +225,7 @@ class RunningTask {
    * @returns true if task was paused, last stage was ended, or resultData was set
    */
   isTaskFinished() {
+    if (!this.taskBasicData) return false;
     return (
       this.unsavedResultData != null ||
       this.wasPaused ||
@@ -408,7 +412,7 @@ class RunningTask {
         throw new Error(
           "Error response from OpenAI: " + JSON.stringify(response, null, 2)
         );
-      outputStr = response.data.choices[0].message.content;
+      outputStr = response.data.choices[0].message?.content ?? "";
       if (!outputStr || outputStr.length == 0) {
         throw new Error(
           "OpenAI returned an invalid response: " +
@@ -568,10 +572,11 @@ class RunningTask {
       this.neo4jDriver,
       this.redis
     );
+    if (!newTaskID) throw new Error("Failed to create sub-task in SQL");
     this.unsavedSubTaskIDs.push(newTaskID);
     this.loadedStageData[this.localStageIdx].subTasksSpawned.push({
       taskID: newTaskID,
-      localParentTag: localParentTag,
+      localParentTag: localParentTag ?? null,
     });
     this.stageDataIndicesAffected.add(this.localStageIdx);
     return newTaskID;
@@ -620,7 +625,7 @@ class RunningTask {
         response == null ||
         response.length == 0 ||
         response[0].lastInteractionMarker !=
-          this.taskBasicData.lastInteractionMarker
+          this.taskBasicData?.lastInteractionMarker
       ) {
         console.log(
           "Task was modified externally. Task runner's changes will not be saved."
@@ -633,7 +638,7 @@ class RunningTask {
     // assemble task data for SQL
     const taskSucceeded =
       this.unsavedResultData == null
-        ? this.taskBasicData.success
+        ? this.taskBasicData?.success
         : "failed" in this.unsavedResultData && this.unsavedResultData.failed
         ? false
         : true;
@@ -641,7 +646,7 @@ class RunningTask {
       ? this.localStageIdx
       : this.localStageIdx - 1;
     const newTaskData: TaskUpdateData = schema.updateTask.parse({
-      paused: this.wasPaused ? true : this.taskBasicData.paused,
+      paused: this.wasPaused ? true : this.taskBasicData?.paused,
       success: taskSucceeded,
       lastEndedStage,
       ...(this.unsavedResultData ? { resultData: this.unsavedResultData } : {}),
