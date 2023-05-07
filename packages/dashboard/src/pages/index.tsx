@@ -391,9 +391,6 @@ const Dashboard: NextPage = () => {
       },
       { enabled: shouldLoadStage0 }
     );
-  console.log("\n\n");
-  console.log("selectedTaskStage0:");
-  console.log(selectedTaskStage0);
   const { data: selectedTaskStage1, isFetching: isLoadingStage1 } =
     api.tasks.getTaskStageNData.useQuery(
       {

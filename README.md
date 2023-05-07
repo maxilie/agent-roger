@@ -183,10 +183,6 @@ NOTE: We use yarn workspaces to configure the monorepo. You might need a Yarn "E
 - Pick "Use Workspace Version"
 - See here for more info: https://yarnpkg.com/getting-started/editor-sdks#vscode
 
-```
+# Miscellaneous
 
-```
-
-```
-
-```
+The dashboard visualizer does not work with Brave browser's shields enabled (specifically, the "block fingerprinting" option disables click functionality for the dashboard's force graph).

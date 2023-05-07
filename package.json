@@ -9,11 +9,11 @@
   ],
   "scripts": {
     "build:core": "yarn workspace weaviate-ts-client2 build && yarn workspace agent-roger-core build",
-    "build:task-runner": "cd packages/task-runner && docker build ../.. -t agent-roger-task-runner -f ./Dockerfile",
+    "build:task-runner": "cd packages/task-runner && docker build --no-cache ../.. -t agent-roger-task-runner -f ./Dockerfile",
     "build:dashboard-prod": "yarn run build:core && yarn workspace agent-roger-dashboard build-prod",
     "dev": "yarn workspace agent-roger-dashboard dev",
     "start:dashboard": "yarn workspace agent-roger-dashboard dev",
-    "start:task-runner": "docker run -it agent-roger-task-runner",
+    "start:task-runner": "docker run -it agent-roger-task-runner:latest",
     "start:vector-db": "cd docker-containers/weaviate && docker-compose --env-file ../../.env up",
     "start:vector-db-background": "cd docker-containers/weaviate && docker-compose --env-file ../../.env up -d",
     "start:redis": "cd docker-containers/redis && docker-compose --env-file ../../.env up",
