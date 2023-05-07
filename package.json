@@ -9,9 +9,10 @@
   ],
   "scripts": {
     "build:core": "yarn workspace agent-roger-core build",
+    "build:deps": "yarn workspace weaviate-ts-client2 build && yarn workspace agent-roger-core build",
     "build:task-runner": "cd packages/task-runner && docker build ../.. -t agent-roger-task-runner -f ./Dockerfile",
-    "build:dashboard": "yarn workspace agent-roger-core build && yarn workspace agent-roger-dashboard build",
-    "build:all": "yarn workspace agent-roger-core build && yarn workspace agent-roger-task-runner build",
+    "build:dashboard": "yarn run build:deps && yarn workspace agent-roger-dashboard build",
+    "build:all": "yarn run build:deps && yarn run build:task-runner && yarn run build:dashboard",
     "dev": "yarn workspace agent-roger-dashboard dev",
     "start:dashboard": "yarn workspace agent-roger-dashboard dev",
     "start:task-runner": "docker run -it agent-roger-task-runner",
