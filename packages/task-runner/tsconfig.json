@@ -1,14 +1,22 @@
 {
   "compilerOptions": {
-    "module": "ESNext",
+    "module": "ES2020",
     "esModuleInterop": true,
     "target": "ESNext",
-    "moduleResolution": "nodenext",
+    "moduleResolution": "node",
     "outDir": "./build",
     "skipLibCheck": true,
     "allowJs": true,
     "checkJs": false,
-    "strict": true
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "types": ["node"]
   },
-  "include": ["**/*", ".eslintrc.cjs"]
+  "include": ["**/*", ".eslintrc.cjs"],
+  "exclude": ["./build", "renameToCjs.cjs"],
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  }
 }

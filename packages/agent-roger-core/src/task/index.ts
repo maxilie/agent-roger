@@ -1,4 +1,4 @@
-import TASK_PRESETS from "./presets";
+import TASK_PRESETS from "./presets.js";
 export { TASK_PRESETS };
 
 /** DEFAULT ABSTRACT TASK OVERVIEW:

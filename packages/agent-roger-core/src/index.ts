@@ -17,7 +17,8 @@ import {
   getActiveTaskIDs,
   deleteTaskTree,
   getTaskStageNData,
-} from "./db/index.js";
+  getLastInteractionMarker,
+} from "./db";
 import { AI_MODELS, AiModel, MAX_UNSYNC_TIME } from "./constants";
 import {
   type StageFunction,
@@ -64,9 +65,9 @@ import {
   OutSchema_getTaskBasicDatas,
   runtimeErrorsSchema,
   RuntimeErrors,
-} from "./zod-schema/index.js";
+} from "./zod-schema";
 
-interface DB {
+export interface DB {
   tasks: typeof tasks;
   conn: typeof connection;
   withNeo4jDriver: typeof withNeo4jDriver;
@@ -82,6 +83,7 @@ interface DB {
   getTaskTreeIDs: typeof getTaskTreeIDs;
   getTaskTree: typeof getTaskTree;
   deleteTaskTree: typeof deleteTaskTree;
+  getLastInteractionMarker: typeof getLastInteractionMarker;
 }
 
 const db: DB = {
@@ -100,9 +102,10 @@ const db: DB = {
   getTaskTreeIDs: getTaskTreeIDs,
   getTaskTree: getTaskTree,
   deleteTaskTree: deleteTaskTree,
+  getLastInteractionMarker: getLastInteractionMarker,
 };
 
-interface Schema {
+export interface Schema {
   input: {
     saveTask: typeof InSchema_saveTaskData;
     createRootTask: typeof InSchema_createRootTask;

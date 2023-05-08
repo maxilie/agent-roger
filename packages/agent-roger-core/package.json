@@ -2,13 +2,15 @@
   "name": "agent-roger-core",
   "version": "1.0.0",
   "description": "Core functions and types for the Agent Roger system",
-  "main": "dist/src/index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": "./dist/index.js",
   "type": "module",
   "keywords": [],
   "author": "",
   "scripts": {
     "lint": "eslint .",
-    "build": "tsc",
+    "build": "rm -rf dist-temp && node add-js-extensions.cjs && tsc -p tsconfig.dist-temp.json",
     "db-push": "yarn drizzle-kit push:mysql"
   },
   "dependencies": {

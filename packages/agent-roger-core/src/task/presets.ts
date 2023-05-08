@@ -1,4 +1,4 @@
-import task_abstract from "./abstract";
+import task_abstract from "./abstract/index.js";
 
 const TASK_PRESETS = {
   abstract: task_abstract,

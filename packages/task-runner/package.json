@@ -7,13 +7,14 @@
   "scripts": {
     "lint": "eslint .",
     "build": "tsc",
-    "start": "node build/src/server.js"
+    "start": "env-cmd -f ../../.env vite-node src/server.ts"
   },
   "dependencies": {
     "@planetscale/database": "1.7.0",
-    "agent-roger-core": "workspace:^",
+    "agent-roger-core": "portal:../agent-roger-core",
     "dotenv": "^16.0.3",
     "drizzle-orm": "0.25.1",
+    "esm": "^3.2.25",
     "graphql": "^16.6.0",
     "ioredis": "^5.3.2",
     "neo4j-driver": "5.7.0",
@@ -22,14 +23,15 @@
     "zod": "3.21.4"
   },
   "devDependencies": {
-    "@agent-roger/eslint-config-base": "workspace:^",
     "@types/node": "^18.16.0",
     "@typescript-eslint/eslint-plugin": "^5.59.1",
     "@typescript-eslint/parser": "^5.59.1",
+    "env-cmd": "^10.1.0",
     "eslint": "^8.39.0",
     "eslint-config-prettier": "8.8.0",
     "prettier": "2.8.8",
-    "tslib": "^2.5.0",
-    "typescript": "^5.0.2"
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.4",
+    "vite-node": "^0.31.0"
   }
 }

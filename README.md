@@ -84,12 +84,11 @@ The easiest way to get started is to:
 You will need the following (free) infra, each of which can be spun up using vendors' websites:
 
 - new Vercel app pointing at your forked GitHub repo (vercel.com)
-  - (in Vercel, make sure to set "Root Directory" to `packages/dashboard`)
 - new PlanetScale MySQL database (planetscale.com)
 - new Upstache Redis database (upstache.com)
 - new Neo4J graph database (neo4j.com/auradb)
 - new Clerk authentication app (clerk.com)
-  - create a user `adminUser`. create an organization called `admin` with owner `adminUser`.
+  - create a user, say, `adminUser`. create an organization called `admin` set its owner to the admin user.
   - only members of the `admin` organization will be able to access the dashboard.
 
 Set environment variables:
@@ -121,14 +120,13 @@ docker-compose up # OR, TO RUN IN BACKGROUND: docker-compose up -d
 yarn install
 
 # build core packages
-yarn build:weaviate-ts-client
-yarn build:agent-roger-core
+yarn run build:core
 
 # build a docker image for task runner
-yarn build:task-runner
+yarn run build:task-runner
 
 # RUN DOCKER CONTAINER
-yarn start:task-runner
+yarn run start:task-runner
 ```
 
 <details>

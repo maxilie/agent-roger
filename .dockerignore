@@ -2,12 +2,11 @@ Dockerfile
 .dockerignore
 node_modules
 packages/dashboard
-packages/weaviate-ts-client/node_modules
 packages/weaviate-ts-client/dist
-packages/task-runner/node_modules
 packages/agent-roger-core/node_modules
 packages/agent-roger-core/out
 packages/agent-roger-core/dist
+packages/agent-roger-core/dist-temp
 dashboard
 .git
 README.md

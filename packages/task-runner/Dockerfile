@@ -27,6 +27,5 @@ COPY ./packages/agent-roger-core/ ./packages/agent-roger-core/
 COPY ./packages/task-runner/ ./packages/task-runner/
 
 RUN yarn run build:core
-RUN yarn workspace agent-roger-task-runner build
 
 CMD ["yarn", "workspace", "agent-roger-task-runner", "start"]

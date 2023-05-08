@@ -1,11 +1,11 @@
-import { connection, sqlClient } from "./sql-client";
-import { tasks } from "./sql-schema";
+import { connection, sqlClient } from "./sql-client.js";
+import { tasks } from "./sql-schema.js";
 import { env } from "../env.mjs";
 import { desc, isNull, eq, inArray, and } from "drizzle-orm";
 import * as neo4j from "neo4j-driver";
-import { REDIS_TASK_QUEUE, type RedisManager } from "./redis";
+import { REDIS_TASK_QUEUE, type RedisManager } from "./redis.js";
 import * as crypto from "crypto";
-import { MAX_UNSYNC_TIME } from "../constants";
+import { MAX_UNSYNC_TIME } from "../constants/index.js";
 import {
   stageDataSchema,
   jsonObjSchema,
@@ -29,7 +29,7 @@ import {
   type InType_deleteTaskTree,
   type InType_getTaskTree,
   type OutType_getTaskTree,
-} from "../zod-schema";
+} from "../zod-schema/index.js";
 
 /**
  *
@@ -213,7 +213,10 @@ export const getTaskBasicData = async (
     };
     return OutSchema_getTaskBasicDataPlus.parse(taskData);
   } catch (e) {
-    console.error("Failed to get task basic data from SQL.");
+    console.error(
+      "Failed to get task basic data from SQL for taskID: ",
+      input.taskID
+    );
     console.error(e);
     return null;
   }
@@ -787,5 +790,20 @@ export const getTaskTree = async (
     } finally {
       return { taskIDs: [], links: [], tasks: [] };
     }
+  }
+};
+
+export const getLastInteractionMarker = async (
+  taskID: number
+): Promise<string | null> => {
+  try {
+    return (
+      await sqlClient
+        .select({ lastInteractionMarker: tasks.lastInteractionMarker })
+        .from(tasks)
+        .where(eq(tasks.taskID, taskID))
+    )[0].lastInteractionMarker;
+  } catch (error) {
+    return null;
   }
 };

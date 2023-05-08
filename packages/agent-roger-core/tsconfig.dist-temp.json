@@ -6,12 +6,13 @@
     "moduleResolution": "node",
     "sourceMap": true,
     "outDir": "./dist",
+    "rootDir": "./dist-temp",
     "skipLibCheck": true,
     "allowJs": true,
     "checkJs": false,
     "declaration": true,
     "strict": true
   },
-  "include": ["**/*", "eslintrc.cjs"],
+  "include": ["dist-temp/**/*.ts"],
   "exclude": ["node_modules", "drizzle.config.ts"]
 }

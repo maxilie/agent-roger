@@ -3,11 +3,13 @@
 # dependencies
 packages/*/node_modules
 packages/*/dist
+packages/*/dist-temp
 packages/*/out
 packages/*/tsconfig.tsbuildinfo
 packages/*/next-env.d.ts
 packages/*/.next
 packages/*/build
+.next
 lib/*/node_modules
 lib/*/dist
 lib/*/build

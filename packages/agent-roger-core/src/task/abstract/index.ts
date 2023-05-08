@@ -1,4 +1,4 @@
-import { type TaskDefinition } from "../../zod-schema";
+import { type TaskDefinition } from "../../zod-schema/index.js";
 
 const task_abstract: TaskDefinition = {
   isAbstract: true,

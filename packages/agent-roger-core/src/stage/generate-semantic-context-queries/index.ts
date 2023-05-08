@@ -1,7 +1,7 @@
 import {
   type StageFunctionHelpers,
   type StageFunction,
-} from "../stage-function";
+} from "../stage-function.js";
 
 const stageFn_generateSemanticContextQueries: StageFunction = async (
   helpers: StageFunctionHelpers
@@ -9,7 +9,7 @@ const stageFn_generateSemanticContextQueries: StageFunction = async (
   return await new Promise((resolve, reject) => {
     setTimeout(() => {
       resolve();
-    }, 1000);
+    }, 1);
   });
 };
 

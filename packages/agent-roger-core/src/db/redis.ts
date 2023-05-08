@@ -45,6 +45,8 @@ export class RedisManager {
     this.inferenceResultPromiseResolvers = {};
     this.ignoredPipelineIdxs = [];
 
+    if (taskIDs.length === 0) return;
+
     // clear queues and add tasks to waiting queue
     await this.redis
       .multi()
@@ -66,11 +68,9 @@ export class RedisManager {
    * Moves task from the processing queue to the waiting queue.
    */
   markTaskWaitingAgain(taskID: number) {
-    this.pipeline.smove(
-      REDIS_TASK_QUEUE.processing,
-      REDIS_TASK_QUEUE.waiting,
-      taskID
-    );
+    this.pipeline
+      .lrem(REDIS_TASK_QUEUE.processing, 0, taskID)
+      .rpush(REDIS_TASK_QUEUE.waiting, taskID);
   }
 
   /**

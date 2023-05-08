@@ -13,12 +13,11 @@ import {
   AI_MODELS,
   env,
 } from "agent-roger-core";
-import { eq } from "drizzle-orm";
 import { type WeaviateClient } from "weaviate-ts-client2";
-import { type PlanetScaleDatabase } from "drizzle-orm/planetscale-serverless";
 import type * as neo4j from "neo4j-driver";
 import { stage, type StageFunctionHelpers } from "agent-roger-core";
-import { type RateLimiter } from "./rate-limiter";
+import { type RateLimiter } from "./rate-limiter.js";
+import { MIN_TIME_BETWEEN_SAME_STAGE_CALLS } from "./constants.js";
 import {
   Configuration as OpenAIConfiguration,
   OpenAIApi,
@@ -64,7 +63,6 @@ class RunningTask {
   taskID: number;
   redis: RedisManager;
   weaviateClient: WeaviateClient;
-  sqlClient: PlanetScaleDatabase;
   neo4jDriver: neo4j.Driver;
   rateLimiter: RateLimiter;
   taskBasicData: TaskBasicData | null;
@@ -76,13 +74,13 @@ class RunningTask {
   unsavedErrors: string[];
   wasPaused: boolean;
   startTime: Date;
+  timeStageWasCalled: { [stageIdx: number]: number };
 
   constructor(
     taskID: number,
     connections: {
       redis: RedisManager;
       weaviateClient: WeaviateClient;
-      sqlClient: PlanetScaleDatabase;
       neo4jDriver: neo4j.Driver;
     },
     rateLimiter: RateLimiter
@@ -90,7 +88,6 @@ class RunningTask {
     this.taskID = taskID;
     this.redis = connections.redis;
     this.weaviateClient = connections.weaviateClient;
-    this.sqlClient = connections.sqlClient;
     this.neo4jDriver = connections.neo4jDriver;
     this.rateLimiter = rateLimiter;
     this.unsavedSubTaskIDs = [];
@@ -102,6 +99,7 @@ class RunningTask {
     this.localStageIdx = -1;
     this.startTime = new Date();
     this.taskBasicData = null;
+    this.timeStageWasCalled = {};
   }
 
   async runNextStages() {
@@ -125,26 +123,54 @@ class RunningTask {
       this.localStageIdx = task.lastEndedStage + 1;
       if (this.localStageIdx <= finalStageIdx) {
         this.loadedStageData[this.localStageIdx] = schema.stageData.parse(
-          task.currentStageData
+          task.currentStageData || {
+            ended: false,
+            subTasksSpawned: [],
+            fields: {},
+          }
         );
       }
       if (this.localStageIdx > 0) {
         this.loadedStageData[this.localStageIdx - 1] = schema.stageData.parse(
-          task.previousStageData
+          task.previousStageData || {
+            ended: false,
+            subTasksSpawned: [],
+            fields: {},
+          }
         );
       }
 
       // for up to 10 seconds...
       while (
-        new Date().getTime() - this.startTime.getTime() <
-        1000 * MAX_RUN_SECS
+        !this.isTaskFinished() &&
+        new Date().getTime() - this.startTime.getTime() < 1000 * MAX_RUN_SECS
       ) {
         // for each stage...
+        if (this.loadedStageData[this.localStageIdx].ended) {
+          this.localStageIdx += 1;
+        }
+        // check to wait before calling the same stage again
+        const now = new Date().getTime();
+        if (
+          this.localStageIdx in this.timeStageWasCalled &&
+          now - this.timeStageWasCalled[this.localStageIdx] <
+            MIN_TIME_BETWEEN_SAME_STAGE_CALLS
+        ) {
+          await new Promise((r) =>
+            setTimeout(
+              r,
+              MIN_TIME_BETWEEN_SAME_STAGE_CALLS -
+                (now - this.timeStageWasCalled[this.localStageIdx])
+            )
+          );
+        }
+        this.timeStageWasCalled[this.localStageIdx] = now;
+
         // ensure local stage data for current stage
         if (!this.loadedStageData[this.localStageIdx]) {
           this.loadedStageData[this.localStageIdx] = schema.stageData.parse({
             ended: false,
-            subTasksSpawned: {},
+            subTasksSpawned: [],
             fields: {},
           });
         }
@@ -152,6 +178,7 @@ class RunningTask {
           // get stage function
           const stageFunction =
             stage.preset[taskDefinition.stagePresets[this.localStageIdx]];
+
           const helpers: StageFunctionHelpers = {
             get: (key: string) => this.getHelper(key),
             set: (key: string, val: Json | null) => this.setHelper(key, val),
@@ -182,6 +209,8 @@ class RunningTask {
           // run stage function
           await stageFunction(helpers);
         } catch (err) {
+          console.error("ERROR IN STAGE FUNCTION: ");
+          console.error(err);
           // mark error and pause task
           // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
           this.endStageHelper(err ?? "Unknown error");
@@ -190,13 +219,6 @@ class RunningTask {
           // remove from redis queue
           this.redis.markTaskFinished(this.taskID);
           return;
-        }
-
-        // move to the next stage
-        if (!this.isTaskFinished()) {
-          this.localStageIdx += 1;
-        } else {
-          break;
         }
       }
 
@@ -617,17 +639,11 @@ class RunningTask {
 
     // check if task was modified externally
     if (new Date().getTime() - this.startTime.getTime() > MAX_UNSYNC_TIME) {
-      const response = await this.sqlClient
-        .select({ lastInteractionMarker: db.tasks.lastInteractionMarker })
-        .from(db.tasks)
-        .where(eq(db.tasks.taskID, this.taskID));
-      if (
-        response == null ||
-        response.length == 0 ||
-        response[0].lastInteractionMarker !=
-          this.taskBasicData?.lastInteractionMarker
-      ) {
-        console.log(
+      const lastInteractionMarker = await db.getLastInteractionMarker(
+        this.taskID
+      );
+      if (lastInteractionMarker != this.taskBasicData?.lastInteractionMarker) {
+        console.warn(
           "Task was modified externally. Task runner's changes will not be saved."
         );
         await this.cleanup();

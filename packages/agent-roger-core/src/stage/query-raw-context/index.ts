@@ -1,7 +1,7 @@
 import {
   type StageFunctionHelpers,
   type StageFunction,
-} from "../stage-function";
+} from "../stage-function.js";
 
 const stageFn_queryRawContext: StageFunction = async (
   helpers: StageFunctionHelpers

@@ -1,27 +1,33 @@
 /* eslint-disable @typescript-eslint/consistent-type-imports */
 console.log("Starting up! Importing dependencies...");
 
-import weaviate, { type WeaviateClient } from "weaviate-ts-client2";
 import * as neo4j from "neo4j-driver";
+import weaviate, { type WeaviateClient } from "weaviate-ts-client2";
 
-import {
-  drizzle,
-  type PlanetScaleDatabase,
-} from "drizzle-orm/planetscale-serverless";
-
-import { connect } from "@planetscale/database";
 import { db, env, REDIS_TASK_QUEUE, RedisManager } from "agent-roger-core";
+import {
+  MAX_CONCURRENT_TASKS,
+  MIN_TIME_BETWEEN_REDIS_CALLS,
+} from "./constants.js";
 import { RunningTask } from "./running-task.js";
+
 import { RateLimiter } from "./rate-limiter.js";
 
 // globals
 const taskRunnerID: string =
   "task-runner-" + Math.random().toString(36).slice(2, 9);
 let weaviateClient: WeaviateClient;
-let sqlClient: PlanetScaleDatabase;
 let neo4jDriver: neo4j.Driver;
 let redis: RedisManager;
 const rateLimiter = new RateLimiter();
+let SHUTTING_DOWN = false;
+const runningTaskCleanupFns: (() => Promise<void>)[] = [];
+const runningTaskIDs: number[] = [];
+let lastRedisCallTime = new Date().getTime();
+// every 5 seconds, print the number of tasks running
+const statusTimer = setInterval(() => {
+  console.log(`Tasks running: ${String(runningTaskIDs.length)}`);
+}, 5000);
 
 /**
  * Initializes and tests database connections.
@@ -46,17 +52,6 @@ const initialize = async () => {
   // });
   console.log("connected to weaviate");
 
-  // connect to sql
-  sqlClient = drizzle(
-    connect({
-      host: env.DATABASE_HOST,
-      username: env.DATABASE_USERNAME,
-      password: env.DATABASE_PASSWORD,
-    })
-  );
-  await sqlClient.select().from(db.tasks).limit(1);
-  console.log("connected to sql");
-
   // connect to neo4j
   neo4jDriver = neo4j.driver(
     env.NEO4J_URI,
@@ -67,23 +62,40 @@ const initialize = async () => {
 
   // connect to redis & init pipeline
   redis = new RedisManager();
+  redis.redis.ping();
   console.log("connected to redis");
 
   // restart task queue
   const unfinishedTaskIDs = await db.getActiveTaskIDs();
+  if (unfinishedTaskIDs && unfinishedTaskIDs.length > MAX_CONCURRENT_TASKS) {
+    unfinishedTaskIDs.splice(MAX_CONCURRENT_TASKS);
+  }
   console.log(
     "initializing first task pipeline with task IDs: ",
     unfinishedTaskIDs
   );
-  await redis.restartQueues(unfinishedTaskIDs || []);
+  await redis.restartQueues(
+    unfinishedTaskIDs?.filter((taskID) => !(taskID in runningTaskIDs)) || []
+  );
 };
 
 /**
  * Runs the next pipeline of redis commands, starts promises to handle the responses, and immediately returns without calling await.
  */
 const runNextPipeline = async (): Promise<void> => {
+  // wait a bit if the last redis call was too recent
+  while (
+    new Date().getTime() - lastRedisCallTime <
+    MIN_TIME_BETWEEN_REDIS_CALLS
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+
   // add to end of pipeline: move at least 5 tasks from waiting queue to processing queue.
-  const numTasksToMove = Math.max(5, redis.pipeline.length);
+  const numTasksToMove = Math.min(
+    MAX_CONCURRENT_TASKS - runningTaskIDs.length,
+    Math.max(5, redis.pipeline.length)
+  );
   for (let i = 0; i < numTasksToMove; i++) {
     redis.pipeline.lmove(
       REDIS_TASK_QUEUE.waiting,
@@ -99,12 +111,15 @@ const runNextPipeline = async (): Promise<void> => {
     resolver: (result: string | null) => void;
     result: string | null;
   }[] = [];
+  lastRedisCallTime = new Date().getTime();
   const results = await redis.pipeline.exec();
-  if (results == null) return;
+  redis.pipeline = redis.redis.pipeline();
+  if (results == null || results == undefined) return;
   for (let i = 0; i < results.length; i++) {
     // handle ignored result
-    if (i in redis.ignoredPipelineIdxs) continue;
-    const [err, result] = results[results.length - i - 1];
+    if (i in redis.ignoredPipelineIdxs || !(i in results) || !results[i])
+      continue;
+    const [err, result] = results[i];
 
     // handle inference request result
     if (i in redis.inferenceResultPromiseResolvers) {
@@ -119,7 +134,6 @@ const runNextPipeline = async (): Promise<void> => {
     // handle task waiting->processing result
     if (err != null || result == null || i < results.length - numTasksToMove)
       continue;
-    console.log("Creating promise for taskID: ", result);
     taskPromises.push(processTask(result as number));
   }
 
@@ -155,53 +169,65 @@ const processTask = async (taskID: number): Promise<void> => {
     {
       redis,
       weaviateClient,
-      sqlClient,
       neo4jDriver,
     },
     rateLimiter
   );
+  runningTaskIDs.push(taskID);
+  const cleanupFn = runningTask.cleanup.bind(runningTask);
+  runningTaskCleanupFns.push(cleanupFn);
   await runningTask.runNextStages();
-
-  // return new Promise((resolve) => {
-  //   setTimeout(() => {
-  //     resolve();
-  //   }, 1);
-  // });
+  runningTaskCleanupFns.splice(runningTaskCleanupFns.indexOf(cleanupFn), 1);
+  runningTaskIDs.splice(runningTaskIDs.indexOf(taskID), 1);
 };
 
 const main = () => {
   console.log("Running main...");
+
+  // initialize connections
   initialize()
-    .then(() => {
-      Promise.resolve()
-        .then(async function resolver(): Promise<void> {
-          // random chance to restart task queues, just in case a new SQL task wasn't added to the waiting queue
-          if (Math.random() < 0.001) {
-            console.log("Restarting queues...");
-            return db
-              .getActiveTaskIDs()
-              .then((unfinishedTaskIDs) => {
-                redis
-                  .restartQueues(unfinishedTaskIDs || [])
-                  .then(resolver)
-                  .catch(resolver);
-              })
-              .catch(resolver);
+    .then(async () => {
+      // run task pipeline logic
+      while (true) {
+        // random chance to restart task queues, just in case a new SQL task wasn't added to the waiting queue
+        if (SHUTTING_DOWN) return;
+        if (Math.random() < 0.001) {
+          console.log("Restarting queues...");
+          try {
+            const unfinishedTaskIDs = await db.getActiveTaskIDs();
+            if (SHUTTING_DOWN) return;
+            await redis.restartQueues(
+              unfinishedTaskIDs?.filter(
+                (taskID) => !(taskID in runningTaskIDs)
+              ) || []
+            );
+          } catch (error) {
+            console.error("Error restarting task queues: ");
+            console.error(error);
           }
-          // run the next redis pipeline
-          else {
-            return runNextPipeline().then(resolver);
-          }
-        })
-        .catch((error) => {
-          console.log("Error running redis pipeline: ", error);
+        }
+
+        // run the next redis pipeline
+        try {
+          if (SHUTTING_DOWN) return;
+          await runNextPipeline();
+        } catch (error) {
+          console.error("Error running redis pipeline: ");
+          console.error(error);
+          if (SHUTTING_DOWN) return;
+          console.log("");
+          console.log("");
+          console.log("");
           console.log("Restarting in 5 seconds...");
           setTimeout(main, 5000);
-        });
+          break;
+        }
+      }
     })
     .catch((error) => {
-      console.log("Error initializing db connections: ", error);
+      console.error("Error initializing db connections: ", error);
       console.log("Restarting in 5 seconds...");
+      if (SHUTTING_DOWN) return;
       setTimeout(main, 5000);
     });
 };
@@ -209,7 +235,31 @@ const main = () => {
 // close connections on exit
 process.on("SIGINT", () => {
   console.log("Shutting down...");
+  console.log("");
+  SHUTTING_DOWN = true;
+  clearInterval(statusTimer);
+  const cleanupTasks = async () => {
+    if (runningTaskIDs.length > 0) {
+      console.log(
+        `Waiting for ${String(runningTaskIDs.length)} tasks to clean up...`
+      );
+      Promise.all(runningTaskCleanupFns).catch((error) => {});
+      let retries = 0;
+      while (retries < 5 && runningTaskIDs.length > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        retries++;
+      }
+      if (retries == 10) {
+        console.warn(
+          "Tasks did not clean up in time, so there could be dangling sub-tasks in SQL and Neo4J whose parent tasks are unaware of them."
+        );
+      } else {
+        console.log("All tasks cleaned up!");
+      }
+    }
+  };
   const closeConnections = async () => {
+    console.log("Closing connections...");
     try {
       await neo4jDriver?.close();
     } catch (_) {}
@@ -217,11 +267,15 @@ process.on("SIGINT", () => {
       await redis?.redis.quit();
     } catch (_) {}
     // TODO Close weaviate connection? Or is it not necessary? Or do we not need a global connection at all?
-  };
-  closeConnections().finally(() => {
     console.log("Successfully shut down!");
     process.exit(0);
-  });
+  };
+  cleanupTasks()
+    .then(closeConnections)
+    .finally(() => {
+      console.log("Successfully shut down!");
+      process.exit(0);
+    });
 });
 
 // entrypoint

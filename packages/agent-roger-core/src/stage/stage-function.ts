@@ -4,7 +4,7 @@ import {
   type Json,
   type ResultData,
   type TaskDefinition,
-} from "../zod-schema";
+} from "../zod-schema/index.js";
 
 export type GetFn = <T extends Json>(key: string) => Promise<T | null>;
 export type SetFn = (key: string, val: Json | null) => void;
