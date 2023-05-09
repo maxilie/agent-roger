@@ -6,8 +6,6 @@ RUN mkdir -p packages/weaviate-ts-client packages/agent-roger-core packages/task
 COPY ./yarn.lock ./
 COPY .yarnrc.yml ./
 COPY .yarn/releases .yarn/releases
-COPY .pnp.cjs .pnp.cjs
-COPY .pnp.loader.mjs .pnp.loader.mjs
 COPY .env .env
 COPY ./package.json ./
 COPY ./libs/@eslint-config-base/package.json ./libs/@eslint-config-base/package.json

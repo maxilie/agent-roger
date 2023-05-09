@@ -74,7 +74,7 @@ const ForceGraph = (props) => {
     let nodeRgb =
       node.status == "success" ? "rgba(119, 240, 101, " : "rgba(84, 132, 227, ";
     let textColor =
-      node.status == ("success" && node.parentID >= 0) ? darkText : whiteText;
+      node.status == "success" && node.parentID >= 0 ? darkText : whiteText;
     if (node.status == "failed") nodeRgb = "rgba(250, 7, 7, ";
     if (node.status == "paused") nodeRgb = "rgba(227, 170, 84, ";
     if (node.parentID == -1) nodeRgb = "rgba(242, 29, 207, ";
@@ -197,11 +197,28 @@ const ForceGraph = (props) => {
   );
 };
 
+function areNodesEqual(prevNodes, nextNodes, fieldsToCompare) {
+  if (prevNodes.length !== nextNodes.length) {
+    return false;
+  }
+
+  for (let i = 0; i < prevNodes.length; i++) {
+    for (const field of fieldsToCompare) {
+      if (prevNodes[i][field] !== nextNodes[i][field]) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 export default memo(ForceGraph, (prevProps, nextProps) => {
-  return (
-    prevProps.nodes.length == nextProps.nodes.length &&
-    prevProps.links.length == nextProps.links.length &&
-    (prevProps.nodes.length == 0 ||
-      prevProps.nodes[0].id == nextProps.nodes[0].id)
-  );
+  return areNodesEqual(prevProps.nodes, nextProps.nodes, [
+    "id",
+    "name",
+    "status",
+    "dead",
+    "idxInSiblingGroup",
+  ]);
 });

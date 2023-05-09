@@ -89,6 +89,38 @@ export const tasksRouter = createTRPCRouter({
       });
       return res || { taskIDs: [], links: [], tasks: [] };
     }),
+
+  // pauses a task
+  pauseTask: protectedProcedure
+    .input(schema.input.deleteTaskTree)
+    .mutation(async ({ input }) => {
+      await db.pauseTask(input);
+    }),
+
+  // pauses a task & descendents
+  pauseTaskTree: protectedProcedure
+    .input(schema.input.deleteTaskTree)
+    .mutation(async ({ input }) => {
+      await db.withNeo4jDriver(async (neo4jDriver) => {
+        await db.pauseTaskTree(input, neo4jDriver);
+      });
+    }),
+
+  // unpauses a task
+  unpauseTask: protectedProcedure
+    .input(schema.input.deleteTaskTree)
+    .mutation(async ({ input }) => {
+      await db.unpauseTask(input);
+    }),
+
+  // unpauses a task & descendents
+  unpauseTaskTree: protectedProcedure
+    .input(schema.input.deleteTaskTree)
+    .mutation(async ({ input }) => {
+      await db.withNeo4jDriver(async (neo4jDriver) => {
+        await db.unpauseTaskTree(input, neo4jDriver);
+      });
+    }),
 });
 
 /**

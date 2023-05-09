@@ -114,6 +114,9 @@ export const withRedis = async (
   const redis = new RedisManager();
   try {
     await callback(redis);
+    if (redis.pipeline.length) {
+      await redis.pipeline.exec();
+    }
   } finally {
     await redis.redis.quit();
   }

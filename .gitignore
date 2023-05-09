@@ -56,3 +56,4 @@ packages/.vercel
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+node_modules

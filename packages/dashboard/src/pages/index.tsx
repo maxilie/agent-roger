@@ -179,7 +179,8 @@ const Dashboard: NextPage = () => {
     rootTaskID: selectedRootTaskID,
   });
 
-  //console.log(selectedTaskTree);
+  // It might be terrible for performance to stringify the entire task tree on every render
+  const selectedTaskTreeChecksum = JSON.stringify(selectedTaskTree ?? {});
 
   // build nodes and links
   useEffect(() => {
@@ -190,6 +191,8 @@ const Dashboard: NextPage = () => {
     )
       return;
 
+    console.log('new selectedRootTask or selectedTaskTree');
+    
     // new node function
     const createNode = (
       nodeID: number,
@@ -305,14 +308,11 @@ const Dashboard: NextPage = () => {
         })
         // use sort index as idxInSiblingGroup
         .forEach((task, idx) => {
-          console.log("child idx of ", idx + 1, " task id: ", task?.taskID);
           if (!task) {
-            console.log("skipping null task");
             return;
           }
           const taskNode = idToTaskNode.get(task.taskID);
           if (!taskNode) return;
-          console.log("setting node idx to ", idx + 1);
           taskNode.idxInSiblingGroup = idx + 1;
         });
     });
@@ -320,7 +320,7 @@ const Dashboard: NextPage = () => {
     // update state with new nodes and links
     setNodes(newNodes);
     setLinks(newLinks);
-  }, [selectedRootTaskID, selectedTaskTree]);
+  }, [selectedRootTaskID, selectedTaskTreeChecksum, selectedTaskTree]);
 
   // prevent Graph from re-rendering when user selects a node
   const setSelectedTaskIDCallback = useCallback((newTaskID: number | null) => {
@@ -591,6 +591,38 @@ const Dashboard: NextPage = () => {
     },
   });
 
+  // pause task db function
+  const pauseTask = api.tasks.pauseTask.useMutation({
+    async onSuccess() {
+      await trpcUtils.tasks.getTaskBasicData.invalidate();
+      await trpcUtils.tasks.getTaskTree.invalidate();
+    },
+  });
+
+  // pause task tree db function
+  const pauseTaskTree = api.tasks.pauseTaskTree.useMutation({
+    async onSuccess() {
+      await trpcUtils.tasks.getTaskBasicData.invalidate();
+      await trpcUtils.tasks.getTaskTree.invalidate();
+    },
+  });
+
+  // unpause task db function
+  const unpauseTask = api.tasks.unpauseTask.useMutation({
+    async onSuccess() {
+      await trpcUtils.tasks.getTaskBasicData.invalidate();
+      await trpcUtils.tasks.getTaskTree.invalidate();
+    },
+  });
+
+  // unpause task tree db function
+  const unpauseTaskTree = api.tasks.unpauseTaskTree.useMutation({
+    async onSuccess() {
+      await trpcUtils.tasks.getTaskBasicData.invalidate();
+      await trpcUtils.tasks.getTaskTree.invalidate();
+    },
+  });
+
   const saveTaskFn = async (changedFields: TaskUpdateData) => {
     try {
       if (!selectedTask) return;
@@ -744,6 +776,22 @@ const Dashboard: NextPage = () => {
         createNewTaskFn={createNewTask}
         saveTaskFn={saveTaskFn}
         isSaving={isSavingChangedFields}
+        isPausing={pauseTask.isLoading}
+        isPausingDescendents={pauseTaskTree.isLoading}
+        isUnpausing={unpauseTask.isLoading}
+        isUnpausingDescendents={unpauseTaskTree.isLoading}
+        pauseFn={async () => {
+          await pauseTask.mutateAsync({ taskID: selectedTaskID || -1 });
+        }}
+        pauseDescendentsFn={async () => {
+          await pauseTaskTree.mutateAsync({ taskID: selectedTaskID || -1 });
+        }}
+        unpauseFn={async () => {
+          await unpauseTask.mutateAsync({ taskID: selectedTaskID || -1 });
+        }}
+        unpauseDescendentsFn={async () => {
+          await unpauseTaskTree.mutateAsync({ taskID: selectedTaskID || -1 });
+        }}
         // SelectedTaskProps
         taskID={selectedTask ? selectedTask.taskID : null}
         parentID={selectedTask?.parentID || null}

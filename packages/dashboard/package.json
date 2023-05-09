@@ -70,8 +70,5 @@
     "not dead",
     "not ie <= 11",
     "not op_mini all"
-  ],
-  "ct3aMetadata": {
-    "initVersion": "7.10.2"
-  }
+  ]
 }

@@ -178,6 +178,17 @@ class RunningTask {
           // get stage function
           const stageFunction =
             stage.preset[taskDefinition.stagePresets[this.localStageIdx]];
+          if (!stageFunction || typeof stageFunction !== "function") {
+            this.endStageHelper(
+              // eslint-disable-next-line @typescript-eslint/restrict-plus-operands
+              "ERROR: Invalid stage function, '" +
+                taskDefinition.stagePresets[this.localStageIdx] +
+                "', does not map to a valid function in 'packages/agent-roger-core/stage/preset.ts'. Instead, the preset mapped to: " +
+                stageFunction
+            );
+            await this.saveOrCleanup();
+            return;
+          }
 
           const helpers: StageFunctionHelpers = {
             get: (key: string) => this.getHelper(key),
@@ -626,126 +637,132 @@ class RunningTask {
    * is called to delete any newly created sub-tasks.
    */
   async saveOrCleanup() {
-    // don't save if nothing changed
-    if (
-      !this.wasPaused &&
-      this.unsavedResultData == null &&
-      this.stageDataIndicesAffected.size === 0 &&
-      this.unsavedErrors.length == 0 &&
-      this.unsavedSubTaskIDs.length == 0
-    ) {
-      return;
-    }
-
-    // check if task was modified externally
-    if (new Date().getTime() - this.startTime.getTime() > MAX_UNSYNC_TIME) {
-      const lastInteractionMarker = await db.getLastInteractionMarker(
-        this.taskID
-      );
-      if (lastInteractionMarker != this.taskBasicData?.lastInteractionMarker) {
-        console.warn(
-          "Task was modified externally. Task runner's changes will not be saved."
-        );
-        await this.cleanup();
+    try {
+      // don't save if nothing changed
+      if (
+        !this.wasPaused &&
+        this.unsavedResultData == null &&
+        this.stageDataIndicesAffected.size === 0 &&
+        this.unsavedErrors.length == 0 &&
+        this.unsavedSubTaskIDs.length == 0
+      ) {
         return;
       }
-    }
 
-    // assemble task data for SQL
-    const taskSucceeded =
-      this.unsavedResultData == null
-        ? this.taskBasicData?.success
-        : "failed" in this.unsavedResultData && this.unsavedResultData.failed
-        ? false
-        : true;
-    const lastEndedStage = this.loadedStageData[this.localStageIdx].ended
-      ? this.localStageIdx
-      : this.localStageIdx - 1;
-    const newTaskData: TaskUpdateData = schema.updateTask.parse({
-      paused: this.wasPaused ? true : this.taskBasicData?.paused,
-      success: taskSucceeded,
-      lastEndedStage,
-      ...(this.unsavedResultData ? { resultData: this.unsavedResultData } : {}),
-      ...(0 in this.stageDataIndicesAffected
-        ? { stage0Data: this.loadedStageData[0] }
-        : {}),
-      ...(1 in this.stageDataIndicesAffected
-        ? { stage1Data: this.loadedStageData[1] }
-        : {}),
-      ...(2 in this.stageDataIndicesAffected
-        ? { stage2Data: this.loadedStageData[2] }
-        : {}),
-      ...(3 in this.stageDataIndicesAffected
-        ? { stage3Data: this.loadedStageData[3] }
-        : {}),
-      ...(4 in this.stageDataIndicesAffected
-        ? { stage4Data: this.loadedStageData[4] }
-        : {}),
-      ...(5 in this.stageDataIndicesAffected
-        ? { stage5Data: this.loadedStageData[5] }
-        : {}),
-      ...(6 in this.stageDataIndicesAffected
-        ? { stage6Data: this.loadedStageData[6] }
-        : {}),
-      ...(7 in this.stageDataIndicesAffected
-        ? { stage7Data: this.loadedStageData[7] }
-        : {}),
-      ...(8 in this.stageDataIndicesAffected
-        ? { stage8Data: this.loadedStageData[8] }
-        : {}),
-      ...(9 in this.stageDataIndicesAffected
-        ? { stage9Data: this.loadedStageData[9] }
-        : {}),
-      ...(10 in this.stageDataIndicesAffected
-        ? { stage10Data: this.loadedStageData[10] }
-        : {}),
-      ...(11 in this.stageDataIndicesAffected
-        ? { stage11Data: this.loadedStageData[11] }
-        : {}),
-      ...(12 in this.stageDataIndicesAffected
-        ? { stage12Data: this.loadedStageData[12] }
-        : {}),
-      ...(13 in this.stageDataIndicesAffected
-        ? { stage13Data: this.loadedStageData[13] }
-        : {}),
-      ...(14 in this.stageDataIndicesAffected
-        ? { stage14Data: this.loadedStageData[14] }
-        : {}),
-      ...(15 in this.stageDataIndicesAffected
-        ? { stage15Data: this.loadedStageData[15] }
-        : {}),
-      ...(16 in this.stageDataIndicesAffected
-        ? { stage16Data: this.loadedStageData[16] }
-        : {}),
-      ...(17 in this.stageDataIndicesAffected
-        ? { stage17Data: this.loadedStageData[17] }
-        : {}),
-      ...(18 in this.stageDataIndicesAffected
-        ? { stage18Data: this.loadedStageData[18] }
-        : {}),
-      ...(19 in this.stageDataIndicesAffected
-        ? { stage19Data: this.loadedStageData[19] }
-        : {}),
-      ...(20 in this.stageDataIndicesAffected
-        ? { stage20Data: this.loadedStageData[20] }
-        : {}),
-      ...(21 in this.stageDataIndicesAffected
-        ? { stage21Data: this.loadedStageData[21] }
-        : {}),
-      ...(22 in this.stageDataIndicesAffected
-        ? { stage22Data: this.loadedStageData[22] }
-        : {}),
-      ...(23 in this.stageDataIndicesAffected
-        ? { stage23Data: this.loadedStageData[23] }
-        : {}),
-    });
+      // check if task was modified externally
+      if (new Date().getTime() - this.startTime.getTime() > MAX_UNSYNC_TIME) {
+        const lastInteractionMarker = await db.getLastInteractionMarker(
+          this.taskID
+        );
+        if (
+          lastInteractionMarker != this.taskBasicData?.lastInteractionMarker
+        ) {
+          console.warn(
+            "Task was modified externally. Task runner's changes will not be saved."
+          );
+          await this.cleanup();
+          return;
+        }
+      }
 
-    // save task
-    await db.saveTaskData(
-      { taskID: this.taskID, newFields: newTaskData },
-      this.neo4jDriver,
-      this.redis
-    );
+      // assemble task data for SQL
+      const taskSucceeded =
+        this.unsavedResultData == null
+          ? this.taskBasicData?.success
+          : "failed" in this.unsavedResultData && this.unsavedResultData.failed
+          ? false
+          : true;
+      const lastEndedStage = this.loadedStageData[this.localStageIdx].ended
+        ? this.localStageIdx
+        : this.localStageIdx - 1;
+      const newTaskData: TaskUpdateData = schema.updateTask.parse({
+        paused: this.wasPaused ? true : this.taskBasicData?.paused,
+        success: taskSucceeded,
+        lastEndedStage,
+        ...(this.unsavedResultData
+          ? { resultData: this.unsavedResultData }
+          : {}),
+        ...(0 in this.stageDataIndicesAffected
+          ? { stage0Data: this.loadedStageData[0] }
+          : {}),
+        ...(1 in this.stageDataIndicesAffected
+          ? { stage1Data: this.loadedStageData[1] }
+          : {}),
+        ...(2 in this.stageDataIndicesAffected
+          ? { stage2Data: this.loadedStageData[2] }
+          : {}),
+        ...(3 in this.stageDataIndicesAffected
+          ? { stage3Data: this.loadedStageData[3] }
+          : {}),
+        ...(4 in this.stageDataIndicesAffected
+          ? { stage4Data: this.loadedStageData[4] }
+          : {}),
+        ...(5 in this.stageDataIndicesAffected
+          ? { stage5Data: this.loadedStageData[5] }
+          : {}),
+        ...(6 in this.stageDataIndicesAffected
+          ? { stage6Data: this.loadedStageData[6] }
+          : {}),
+        ...(7 in this.stageDataIndicesAffected
+          ? { stage7Data: this.loadedStageData[7] }
+          : {}),
+        ...(8 in this.stageDataIndicesAffected
+          ? { stage8Data: this.loadedStageData[8] }
+          : {}),
+        ...(9 in this.stageDataIndicesAffected
+          ? { stage9Data: this.loadedStageData[9] }
+          : {}),
+        ...(10 in this.stageDataIndicesAffected
+          ? { stage10Data: this.loadedStageData[10] }
+          : {}),
+        ...(11 in this.stageDataIndicesAffected
+          ? { stage11Data: this.loadedStageData[11] }
+          : {}),
+        ...(12 in this.stageDataIndicesAffected
+          ? { stage12Data: this.loadedStageData[12] }
+          : {}),
+        ...(13 in this.stageDataIndicesAffected
+          ? { stage13Data: this.loadedStageData[13] }
+          : {}),
+        ...(14 in this.stageDataIndicesAffected
+          ? { stage14Data: this.loadedStageData[14] }
+          : {}),
+        ...(15 in this.stageDataIndicesAffected
+          ? { stage15Data: this.loadedStageData[15] }
+          : {}),
+        ...(16 in this.stageDataIndicesAffected
+          ? { stage16Data: this.loadedStageData[16] }
+          : {}),
+        ...(17 in this.stageDataIndicesAffected
+          ? { stage17Data: this.loadedStageData[17] }
+          : {}),
+        ...(18 in this.stageDataIndicesAffected
+          ? { stage18Data: this.loadedStageData[18] }
+          : {}),
+        ...(19 in this.stageDataIndicesAffected
+          ? { stage19Data: this.loadedStageData[19] }
+          : {}),
+        ...(20 in this.stageDataIndicesAffected
+          ? { stage20Data: this.loadedStageData[20] }
+          : {}),
+        ...(21 in this.stageDataIndicesAffected
+          ? { stage21Data: this.loadedStageData[21] }
+          : {}),
+        ...(22 in this.stageDataIndicesAffected
+          ? { stage22Data: this.loadedStageData[22] }
+          : {}),
+        ...(23 in this.stageDataIndicesAffected
+          ? { stage23Data: this.loadedStageData[23] }
+          : {}),
+      });
+
+      // save task
+      await db.saveTaskData(
+        { taskID: this.taskID, newFields: newTaskData },
+        this.neo4jDriver,
+        this.redis
+      );
+    } catch (err) {}
   }
 }
 

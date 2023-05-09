@@ -1,22 +1,18 @@
 {
   "compilerOptions": {
-    "module": "ES2020",
+    "module": "ESNext",
     "esModuleInterop": true,
+    "lib": ["dom", "dom.iterable", "esnext", "ES2015.Core"],
+    "baseUrl": "./",
     "target": "ESNext",
     "moduleResolution": "node",
-    "outDir": "./build",
     "skipLibCheck": true,
     "allowJs": true,
     "checkJs": false,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
-    "types": ["node"]
   },
   "include": ["**/*", ".eslintrc.cjs"],
-  "exclude": ["./build", "renameToCjs.cjs"],
-  "ts-node": {
-    "esm": true,
-    "experimentalSpecifierResolution": "node"
-  }
+  "exclude": ["./build", "renameToCjs.cjs"]
 }

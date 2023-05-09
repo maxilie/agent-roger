@@ -3,22 +3,21 @@
   "version": "1.0.0",
   "description": "",
   "type": "module",
-  "main": "build/src/server.js",
+  "main": "src/server.ts",
   "scripts": {
     "lint": "eslint .",
-    "build": "tsc",
-    "start": "env-cmd -f ../../.env vite-node src/server.ts"
+    "start": "env-cmd -f ../../.env ts-node --esm ./src/server.ts"
   },
   "dependencies": {
     "@planetscale/database": "1.7.0",
     "agent-roger-core": "portal:../agent-roger-core",
     "dotenv": "^16.0.3",
     "drizzle-orm": "0.25.1",
-    "esm": "^3.2.25",
     "graphql": "^16.6.0",
     "ioredis": "^5.3.2",
     "neo4j-driver": "5.7.0",
     "openai": "^3.2.1",
+    "ts-node": "^10.9.1",
     "weaviate-ts-client2": "workspace:^",
     "zod": "3.21.4"
   },
@@ -31,7 +30,6 @@
     "eslint-config-prettier": "8.8.0",
     "prettier": "2.8.8",
     "ts-node": "^10.9.1",
-    "typescript": "^5.0.4",
-    "vite-node": "^0.31.0"
+    "typescript": "^5.0.4"
   }
 }

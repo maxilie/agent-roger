@@ -361,6 +361,14 @@ export const ControlArea = (
     }) => Promise<void>;
     saveTaskFn: (changedFields: TaskUpdateData) => Promise<void>;
     isSaving: boolean;
+    isPausing: boolean;
+    isPausingDescendents: boolean;
+    isUnpausing: boolean;
+    isUnpausingDescendents: boolean;
+    pauseFn: () => Promise<void>;
+    pauseDescendentsFn: () => Promise<void>;
+    unpauseFn: () => Promise<void>;
+    unpauseDescendentsFn: () => Promise<void>;
   } & SelectedTaskProps
 ) => {
   const router = useRouter();
@@ -422,6 +430,14 @@ export const ControlArea = (
               <SelectedTask
                 saveTaskFn={props.saveTaskFn}
                 isSaving={props.isSaving}
+                isPausing={props.isPausing}
+                isPausingDescendents={props.isPausingDescendents}
+                isUnpausing={props.isUnpausing}
+                isUnpausingDescendents={props.isUnpausingDescendents}
+                pauseFn={props.pauseFn}
+                pauseDescendentsFn={props.pauseDescendentsFn}
+                unpauseFn={props.unpauseFn}
+                unpauseDescendentsFn={props.unpauseDescendentsFn}
                 taskID={props.taskID}
                 parentID={props.parentID}
                 paused={props.paused}
@@ -636,6 +652,14 @@ const SelectedTask: FC<
   {
     saveTaskFn: (changedFields: TaskUpdateData) => Promise<void>;
     isSaving: boolean;
+    isPausing: boolean;
+    isPausingDescendents: boolean;
+    isUnpausing: boolean;
+    isUnpausingDescendents: boolean;
+    pauseFn: () => Promise<void>;
+    pauseDescendentsFn: () => Promise<void>;
+    unpauseFn: () => Promise<void>;
+    unpauseDescendentsFn: () => Promise<void>;
   } & SelectedTaskProps
 > = (props) => {
   // state vars for editable fields
@@ -913,28 +937,81 @@ const SelectedTask: FC<
         </div>
 
         {/* pause/resume buttons */}
-        <div className="mb-4 flex flex-row justify-between">
-          {!props.paused && (
-            <>
-              <button className="mr-4 w-full rounded bg-yellow-500 px-4 py-2 text-slate-50 hover:bg-yellow-600 hover:text-slate-50">
-                Pause
-              </button>
-              <button className="ml-4 w-full rounded bg-yellow-500 px-4 py-2 text-slate-50 hover:bg-yellow-600 hover:text-slate-50">
-                Pause Descendents
-              </button>
-            </>
-          )}
-          {props.paused && (
-            <>
-              <button className="mr-4 w-full rounded bg-blue-500 px-4 py-2 text-slate-50 hover:bg-blue-600">
-                Resume
-              </button>
-              <button className="ml-4 w-full rounded bg-blue-500 px-4 py-2 text-slate-50 hover:bg-blue-600">
-                Resume Descendents
-              </button>
-            </>
-          )}
-        </div>
+        {!props.dead && (
+          <div className="mb-4 flex flex-row justify-between">
+            {!props.paused && (
+              <>
+                {!props.resultData && props.success == null ? (
+                  <Button
+                    disabled={props.isPausing}
+                    variant={"yellow"}
+                    className="mr-4 w-full rounded px-4 py-2 text-lg text-slate-50"
+                    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                    onClick={async () => {
+                      console.log("pausing");
+                      await props.pauseFn();
+                    }}
+                  >
+                    {props.isPausing && (
+                      <Loader2 className="mr-4 h-4 w-4 animate-spin" />
+                    )}
+                    Pause
+                  </Button>
+                ) : (
+                  <div className="mr-4 w-full"></div>
+                )}
+                <Button
+                  disabled={props.isPausingDescendents}
+                  variant={"yellow"}
+                  className="ml-4 w-full rounded px-4 py-2 text-lg"
+                  // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                  onClick={async () => {
+                    await props.pauseDescendentsFn();
+                  }}
+                >
+                  {props.isPausingDescendents && (
+                    <Loader2 className="mr-4 h-4 w-4 animate-spin" />
+                  )}
+                  Pause Descendents
+                </Button>
+              </>
+            )}
+            {props.paused && (
+              <>
+                <Button
+                  disabled={props.isUnpausing}
+                  variant={"blue2"}
+                  className="roundedpx-4 mr-4 w-full py-2 text-lg"
+                  // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                  onClick={async () => {
+                    await props.unpauseFn();
+                  }}
+                >
+                  {props.isUnpausing && (
+                    <Loader2 className="mr-4 h-4 w-4 animate-spin" />
+                  )}
+                  Unpause
+                </Button>
+                <Button
+                  disabled={props.isUnpausingDescendents}
+                  variant={"blue2"}
+                  className="ml-4 w-full rounded  px-4 py-2 text-lg"
+                  // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                  onClick={async () => {
+                    await props.unpauseDescendentsFn();
+                  }}
+                >
+                  {props.isUnpausingDescendents && (
+                    <Loader2 className="mr-4 h-4 w-4 animate-spin" />
+                  )}
+                  {props.isUnpausingDescendents
+                    ? "Unpause Tree"
+                    : "Unpause Descendents"}
+                </Button>
+              </>
+            )}
+          </div>
+        )}
 
         {/* restart button */}
         {props.isAbstract && (

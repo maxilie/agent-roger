@@ -18,6 +18,11 @@ import {
   deleteTaskTree,
   getTaskStageNData,
   getLastInteractionMarker,
+  pauseTask,
+  pauseTaskTree,
+  unpauseTask,
+  unpauseTaskTree,
+  restartTaskTree,
 } from "./db";
 import { AI_MODELS, AiModel, MAX_UNSYNC_TIME } from "./constants";
 import {
@@ -84,6 +89,11 @@ export interface DB {
   getTaskTree: typeof getTaskTree;
   deleteTaskTree: typeof deleteTaskTree;
   getLastInteractionMarker: typeof getLastInteractionMarker;
+  pauseTask: typeof pauseTask;
+  pauseTaskTree: typeof pauseTaskTree;
+  unpauseTask: typeof unpauseTask;
+  unpauseTaskTree: typeof unpauseTaskTree;
+  restartTaskTree: typeof restartTaskTree;
 }
 
 const db: DB = {
@@ -103,6 +113,11 @@ const db: DB = {
   getTaskTree: getTaskTree,
   deleteTaskTree: deleteTaskTree,
   getLastInteractionMarker: getLastInteractionMarker,
+  pauseTask: pauseTask,
+  pauseTaskTree: pauseTaskTree,
+  unpauseTask: unpauseTask,
+  unpauseTaskTree: unpauseTaskTree,
+  restartTaskTree: restartTaskTree,
 };
 
 export interface Schema {

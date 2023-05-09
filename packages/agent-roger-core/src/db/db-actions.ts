@@ -372,7 +372,7 @@ export const saveTaskData = async (
   isTaskRunner = false
 ) => {
   try {
-    const marker = crypto.pseudoRandomBytes(12).toString("hex");
+    const marker = crypto.webcrypto.randomUUID();
     let retries = 0;
     while (retries < 3) {
       // stop processing the task
@@ -528,8 +528,6 @@ export const createRootTask = async (
  *
  * Create a child task of another task. Save it in SQL & Neo4J, and push to redis queue of waiting tasks.
  *
- * // TODO in protected.js, make sure to exec() the redis.pipeline before closing it
- *
  *
  */
 
@@ -673,7 +671,11 @@ export const getTaskTreeIDs = async (
 };
 
 /**
+ *
+ *
  * Delete task (in SQL and Neo4J) with `taskID`, and all its descendant tasks.
+ *
+ *
  */
 
 export const deleteTaskTree = async (
@@ -731,7 +733,11 @@ export const deleteTaskTree = async (
 };
 
 /**
+ *
+ *
  * Get a task tree (nodes & relationships) rooted at the node with taskID=rootTaskID.
+ *
+ *
  */
 
 export const getTaskTree = async (
@@ -793,6 +799,14 @@ export const getTaskTree = async (
   }
 };
 
+/**
+ *
+ *
+ * Get a task's last interaction marker, which changes every time its data is updated.
+ *
+ *
+ */
+
 export const getLastInteractionMarker = async (
   taskID: number
 ): Promise<string | null> => {
@@ -805,5 +819,261 @@ export const getLastInteractionMarker = async (
     )[0].lastInteractionMarker;
   } catch (error) {
     return null;
+  }
+};
+
+/**
+ *
+ *
+ * Pause the task with `taskID`.
+ *
+ *
+ */
+
+export const pauseTask = async (
+  input: InType_deleteTaskTree
+): Promise<void> => {
+  if (!!!input.taskID) {
+    return;
+  }
+  try {
+    await sqlClient
+      .update(tasks)
+      .set({ paused: true })
+      .where(eq(tasks.taskID, input.taskID));
+
+    // handle errors
+  } catch (error) {
+    console.error("FAILED to pause task with taskID: ", input.taskID);
+    console.error(error);
+  }
+};
+
+/**
+ *
+ *
+ * Unpause the task with `taskID`.
+ *
+ *
+ */
+
+export const unpauseTask = async (
+  input: InType_deleteTaskTree
+): Promise<void> => {
+  if (!!!input.taskID) {
+    return;
+  }
+  try {
+    await sqlClient
+      .update(tasks)
+      .set({ paused: false })
+      .where(eq(tasks.taskID, input.taskID));
+
+    // handle errors
+  } catch (error) {
+    console.error("FAILED to unpause task with taskID: ", input.taskID);
+    console.error(error);
+  }
+};
+
+/**
+ *
+ *
+ * Pause task with `taskID`, and all its descendant tasks.
+ *
+ *
+ */
+export const pauseTaskTree = async (
+  input: InType_deleteTaskTree,
+  neo4jDriver: neo4j.Driver
+): Promise<void> => {
+  if (!!!input.taskID) {
+    return;
+  }
+  const taskIDsToPause = new Set([input.taskID]);
+  try {
+    const neo4jSession = neo4jDriver.session();
+
+    // get nodes from neo4j
+    const result = await neo4jSession.run(
+      "MATCH (root_task:Task {taskID: $idParam}) \
+          CALL apoc.path.subgraphAll(root_task, {relationshipFilter: 'SPAWNED>', maxLevel: -1}) YIELD nodes, relationships \
+          UNWIND relationships AS relation \
+          RETURN startNode(relation) AS source, endNode(relation) AS target; ",
+      {
+        idParam: input.taskID,
+      }
+    );
+
+    // process nodes from neo4j
+    result.records.forEach((record) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      taskIDsToPause.add(record.get("source").properties.taskID.toInt());
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      taskIDsToPause.add(record.get("target").properties.taskID.toInt());
+    });
+
+    // pause tasks in SQL
+    await sqlClient
+      .update(tasks)
+      .set({ paused: true })
+      .where(inArray(tasks.taskID, Array.from(taskIDsToPause)));
+
+    // handle errors
+  } catch (error) {
+    console.error("FAILED to pause task tree rooted at task: ", input.taskID);
+    console.error(error);
+  }
+};
+
+/**
+ *
+ *
+ * Pause task with `taskID`, and all its descendant tasks.
+ *
+ *
+ */
+
+export const unpauseTaskTree = async (
+  input: InType_deleteTaskTree,
+  neo4jDriver: neo4j.Driver
+): Promise<void> => {
+  if (!!!input.taskID) {
+    return;
+  }
+  const taskIDsToUnpause = new Set([input.taskID]);
+  try {
+    const neo4jSession = neo4jDriver.session();
+
+    // get nodes from neo4j
+    const result = await neo4jSession.run(
+      "MATCH (root_task:Task {taskID: $idParam}) \
+          CALL apoc.path.subgraphAll(root_task, {relationshipFilter: 'SPAWNED>', maxLevel: -1}) YIELD nodes, relationships \
+          UNWIND relationships AS relation \
+          RETURN startNode(relation) AS source, endNode(relation) AS target; ",
+      {
+        idParam: input.taskID,
+      }
+    );
+
+    // process nodes from neo4j
+    result.records.forEach((record) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      taskIDsToUnpause.add(record.get("source").properties.taskID.toInt());
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      taskIDsToUnpause.add(record.get("target").properties.taskID.toInt());
+    });
+
+    // unpause tasks in SQL
+    await sqlClient
+      .update(tasks)
+      .set({ paused: false })
+      .where(inArray(tasks.taskID, Array.from(taskIDsToUnpause)));
+
+    // handle errors
+  } catch (error) {
+    console.error("FAILED to unpause task tree rooted at task: ", input.taskID);
+    console.error(error);
+  }
+};
+
+/**
+ *
+ *
+ * Delete a task's descendents, restart it, and propogate its new outputs to ancestor tasks.
+ *
+ *
+ */
+
+export const restartTaskTree = async (
+  input: InType_deleteTaskTree,
+  neo4jDriver: neo4j.Driver
+): Promise<void> => {
+  if (!!!input.taskID) {
+    return;
+  }
+  const descendentTaskIDs = new Set();
+  const ancestorTaskIDs = new Set();
+  try {
+    const neo4jSession = neo4jDriver.session();
+
+    // get descendent nodes from neo4j
+    const descendentsResult = await neo4jSession.run(
+      "MATCH (root_task:Task {taskID: $idParam}) \
+          CALL apoc.path.subgraphAll(root_task, {relationshipFilter: 'SPAWNED>', maxLevel: -1}) YIELD nodes, relationships \
+          UNWIND relationships AS relation \
+          RETURN startNode(relation) AS source, endNode(relation) AS target; ",
+      {
+        idParam: input.taskID,
+      }
+    );
+
+    // process descendent nodes from neo4j
+    descendentsResult.records.forEach((record) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      descendentTaskIDs.add(record.get("source").properties.taskID.toInt());
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      descendentTaskIDs.add(record.get("target").properties.taskID.toInt());
+    });
+    descendentTaskIDs.delete(input.taskID);
+
+    // get descendent nodes from neo4j
+    const ancestorsResult = await neo4jSession.run(
+      "MATCH (root_task:Task {taskID: $idParam}) \
+          CALL apoc.path.subgraphAll(root_task, {relationshipFilter: 'SPAWNED>', maxLevel: -1}) YIELD nodes, relationships \
+          UNWIND relationships AS relation \
+          RETURN startNode(relation) AS source, endNode(relation) AS target; ",
+      {
+        idParam: input.taskID,
+      }
+    );
+
+    // process descendent nodes from neo4j
+    ancestorsResult.records.forEach((record) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      ancestorTaskIDs.add(record.get("source").properties.taskID.toInt());
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      ancestorTaskIDs.add(record.get("target").properties.taskID.toInt());
+    });
+    ancestorTaskIDs.delete(input.taskID);
+
+    /*
+
+- Fail if taskToRestart is dead.
+- Create map of which tasks were previously paused: ancestorPreviouslyPaused.
+- Create a list of tasksToKill.
+- Get all direct ancestor task IDs from Neo4J.
+    - Get whether they’re paused in SQL and save to ancestorPreviouslyPaused.
+    - Mark them all as paused in SQL.
+- Clear redis queues.
+- While any ancestor task is in a redis queue, pause all the tasks in SQL again and clear redis queues again.
+- Once no ancestor tasks are in a redis queue, pause all the tasks in SQL one more time.
+- Start with dependencyParent = taskToRestart’s parentID task. dependencyTaskID = taskToRestart.
+    - Get all stage data for generate_sub_tasks and later stages.
+    - a) Get the stepIdx where stepIdxToSubTaskID[stepIdx] = dependencyTaskID.
+    - If dependencyTaskID = taskToRestart.taskID:
+        - create a new sub-task with the same init fields as taskToRestart.
+        - set internalData.stepIdxToSubTaskID[step] = new sub-task’s id.
+        - set internalData.dependencyStepOutput[step] = null.
+    - Get step indexes that depend on (internalData.stepDependencies) dependency stepIdx from a). For each stepIdx:
+        - Set internalData.dependencyStepOutput[stepIdx] = null.
+        - Get possible subTaskID from internalData.stepIdxToSubTaskID[stepIdx]:
+            - Get all oldTaskIDs from the Neo4J tree rooted at subTaskID.
+            - Add oldTaskIDs to tasksToKill.
+            - Remove all oldTaskIDs from redis waiting queue.
+            - Mark all oldTaskIDs as dead in SQL and Neo4J.
+    - Move on: dependencyTaskID = dependencyParent. dependencyParent = dependencyParent’s parent (or else end loop).
+- While true:
+    - Mark all tasksToKill as dead in SQL.
+    - While any tasksToKill, or any ancestor task, is in a redis queue: clear redis queues, m
+    - Wait
+    - Verify that every tasksToKill task is dead in SQL. Only break if true.
+- Unpause all ancestors that were not ancestorPreviouslyPaused=true.
+    */
+
+    // handle errors
+  } catch (error) {
+    console.error("FAILED to restart task tree task: ", input.taskID);
+    console.error(error);
   }
 };
