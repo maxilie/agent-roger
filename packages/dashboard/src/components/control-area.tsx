@@ -312,7 +312,7 @@ const StringOrJsonInputArea = (props: {
       </div>
       <textarea
         className={
-          "w-full resize-y rounded bg-gray-700 p-2 text-white" +
+          "w-full resize-y rounded bg-gray-700 p-2 text-white drop-shadow-lg" +
           " " +
           props.defaultFieldHeight
         }
@@ -948,7 +948,6 @@ const SelectedTask: FC<
                     className="mr-4 w-full rounded px-4 py-2 text-lg text-slate-50"
                     // eslint-disable-next-line @typescript-eslint/no-misused-promises
                     onClick={async () => {
-                      console.log("pausing");
                       await props.pauseFn();
                     }}
                   >
@@ -1053,19 +1052,19 @@ const SelectedTask: FC<
           <div>
             <InfoIcon className="h-5 w-5 text-cyan-300" />
           </div>
-          <p className="ml-2 text-sm text-blue-100">{`When you edit a field, a "Save All" button appears. THIS WILL ALSO SAVE OTHER FIELDS YOU HAVE EDITED.`}</p>
+          <p className="ml-2 text-sm text-orange-50">{`When you edit a field, a "Save All" button appears. THIS WILL ALSO SAVE OTHER FIELDS YOU HAVE EDITED.`}</p>
         </div>
         <div className="mt-3 flex">
           <div>
             <InfoIcon className="h-5 w-5 text-cyan-300" />
           </div>
-          <p className="ml-2 text-sm text-blue-100">{`To erase a JSON field, change it to: {}`}</p>
+          <p className="ml-2 text-sm text-orange-50">{`To erase a JSON field, change it to: {}`}</p>
         </div>
         <div className="mt-3 flex">
           <div>
             <InfoIcon className="h-5 w-5 text-cyan-300" />
           </div>
-          <p className="ml-2 block text-sm text-blue-100">{`To erase a string field, change it to: ""`}</p>
+          <p className="ml-2 block text-sm text-orange-50">{`To erase a string field, change it to: ""`}</p>
         </div>
         <div className="mt-14" />
 
@@ -1179,7 +1178,7 @@ const SelectedTask: FC<
         </div>
 
         {/* success */}
-        <div className="mb-2 mt-10 flex w-full flex-row align-middle">
+        <div className="mb-6 mt-10 flex w-full flex-row align-middle">
           <label
             htmlFor="successField"
             className="text-md my-auto font-semibold text-gray-50"
@@ -1188,7 +1187,7 @@ const SelectedTask: FC<
           </label>
           <select
             id="successField"
-            className="my-auto ml-4 max-w-lg rounded bg-slate-500 p-2 text-white"
+            className="my-auto ml-4 max-w-lg rounded bg-slate-500 p-2 text-white drop-shadow-md hover:cursor-pointer"
             value={
               userSuccess == null ? "null" : userSuccess ? "true" : "false"
             }
@@ -1214,7 +1213,7 @@ const SelectedTask: FC<
         </div>
 
         {/* lastEndedStage */}
-        <div className="mb-2 mt-5 flex w-full flex-row align-middle">
+        <div className="mb-2 mt-8 flex w-full flex-row align-middle">
           <label
             htmlFor="lastEndedStageField"
             className="text-md my-auto font-semibold text-gray-50"
@@ -1223,7 +1222,7 @@ const SelectedTask: FC<
           </label>
           <select
             id="lastEndedStageField"
-            className="my-auto ml-4 max-w-lg rounded bg-slate-500 p-2 text-white"
+            className="my-auto ml-4 max-w-lg rounded bg-slate-500 p-2 text-white drop-shadow-md hover:cursor-pointer"
             value={userLastEndedStage}
             onChange={(e) => {
               setUserLastEndedStage(Number(e.target.value));
@@ -1241,6 +1240,17 @@ const SelectedTask: FC<
           {userLastEndedStage != props.lastEndedStage && (
             <SaveFieldBtn isSaving={props.isSaving} saveFn={saveEditedFields} />
           )}
+        </div>
+        <div className="mb-7 mt-3 flex flex-row align-middle">
+          <div className="mr-2">
+            <InfoIcon className="h-4 w-4 text-cyan-300" />
+          </div>
+          <p className="text-sm text-orange-50">
+            {
+              "You could cause the task to fail if you skip stages \
+                without adding the Stage Data which they would have generated."
+            }
+          </p>
         </div>
 
         {/* paused */}

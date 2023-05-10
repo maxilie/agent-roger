@@ -26,6 +26,7 @@ import { api } from "~/utils/api";
 import dynamic from "next/dynamic";
 import { z } from "zod";
 import { ControlArea, type SelectedTaskProps } from "~/components/control-area";
+import { InType_saveTaskData } from "agent-roger-core/dist/zod-schema";
 const ForceGraph = dynamic(
   () => import("~/components/force-graph").then((component) => component),
   { ssr: false }
@@ -191,8 +192,6 @@ const Dashboard: NextPage = () => {
     )
       return;
 
-    console.log('new selectedRootTask or selectedTaskTree');
-    
     // new node function
     const createNode = (
       nodeID: number,
@@ -202,8 +201,8 @@ const Dashboard: NextPage = () => {
       if (!selectedTaskTree || !selectedTaskTree.tasks) return null;
       const task = selectedTaskTree.tasks.find((task) => task.taskID == nodeID);
       if (!task) return null;
-      let status = task.success != null && !task.success ? "failed" : "running";
-      if (task.paused) status = "paused";
+      let status = task.paused ? "paused" : "running";
+      if (task.success != null && !task.success) status = "failed";
       if (task.success != null && task.success) status = "success";
       if (task.dead) status = "dead";
       const taskType = getTaskType(task);
@@ -584,6 +583,15 @@ const Dashboard: NextPage = () => {
     },
   });
 
+  // save task and rerender visualizer db function
+  const saveTaskAndRerenderTree = api.tasks.saveTaskData.useMutation({
+    async onSuccess() {
+      await trpcUtils.tasks.getTaskBasicData.invalidate();
+      await trpcUtils.tasks.getTaskStageNData.invalidate();
+      await trpcUtils.tasks.getTaskTree.invalidate();
+    },
+  });
+
   // create new task db function
   const createRootTask = api.tasks.createRootTask.useMutation({
     async onSuccess() {
@@ -626,11 +634,28 @@ const Dashboard: NextPage = () => {
   const saveTaskFn = async (changedFields: TaskUpdateData) => {
     try {
       if (!selectedTask) return;
+      const newFields = schema.updateTask.parse(changedFields);
       const params = schema.input.saveTask.parse({
         taskID: selectedTask.taskID,
-        newFields: schema.updateTask.parse(changedFields),
+        newFields: newFields,
       });
-      await saveTask.mutateAsync(params);
+      const fieldsToTriggerRerender: Array<keyof TaskUpdateData> = [
+        "success",
+        "resultData",
+      ];
+      let shouldRerenderTree = false;
+      for (const field of fieldsToTriggerRerender) {
+        if (newFields[field] !== null && newFields[field] == undefined) {
+          continue;
+        }
+        shouldRerenderTree = true;
+        break;
+      }
+      if (shouldRerenderTree) {
+        await saveTaskAndRerenderTree.mutateAsync(params);
+      } else {
+        await saveTask.mutateAsync(params);
+      }
     } catch (error) {
       console.error(error);
       // show error alert

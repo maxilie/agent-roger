@@ -8,6 +8,7 @@ const NODE_REL_SIZE = 2;
  * props: {nodes, links, width: number, height: number, setSelectedTaskID: fn}
  */
 const ForceGraph = (props) => {
+  const [prevNodes, setPrevNodes] = useState(props.nodes || []);
   const [highlightNodeIDs, setHighlightNodeIDs] = useState(new Set());
 
   const updateHighlight = () => {
@@ -26,8 +27,13 @@ const ForceGraph = (props) => {
     updateHighlight();
   };
 
+  // reset highlight when the task tree changes,
+  // but not when the task status changes
   useEffect(() => {
-    setHighlightNodeIDs(new Set());
+    if (!areNodesEqual(props.nodes, prevNodes, ["id", "dead"])) {
+      setHighlightNodeIDs(new Set());
+    }
+    setPrevNodes(props.nodes);
   }, [props.nodes]);
 
   const isLinkHighlighted = useCallback(
