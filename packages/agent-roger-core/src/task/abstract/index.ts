@@ -1,9 +1,9 @@
-import { type TaskDefinition } from "../../zod-schema/index.js";
+import { type TaskDefinition } from "../../zod-schema/stage-base/task-definition";
 
 const task_abstract: TaskDefinition = {
   isAbstract: true,
   stagePresets: [
-    // see: `src/stage/presets`: STAGE_PRESETS
+    // see: /src/stage/presets: `STAGE_PRESETS`
     "generateSemanticContextQueries",
     "generateKeywordContextQueries",
     "generateSemanticQueryEmbeddings",

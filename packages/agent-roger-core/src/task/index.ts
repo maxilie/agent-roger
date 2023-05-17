@@ -79,7 +79,7 @@ context with length <1/6th of the token limit.
 Each sub-task's input chunks can be any size, but it always outputs a single summary
 with length <1/6th of the token limit.
 
-Spawned by arbitrary task initially, and then recursively by SUMMARIZE_CONTEXT.
+Spawned by arbitrary task initially, and then recursively by SUMMARIZE_CONTEXT task.
       
 // await EXECUTE_FUNCTION child, OR
 // await SUMMARIZE_CONTEXT child

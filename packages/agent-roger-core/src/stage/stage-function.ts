@@ -1,10 +1,7 @@
-import { type WeaviateClient } from "weaviate-ts-client2";
-import {
-  type JsonObj,
-  type Json,
-  type ResultData,
-  type TaskDefinition,
-} from "../zod-schema/index.js";
+import { type WeaviateClient } from "weaviate-ts-client";
+import { type ResultData } from "../zod-schema/index.js";
+import { type Json, type JsonObj } from "../zod-schema/stage-base/json.js";
+import { type TaskDefinition } from "../zod-schema/stage-base/task-definition.js";
 
 export type GetFn = <T extends Json>(key: string) => Promise<T | null>;
 export type SetFn = (key: string, val: Json | null) => void;
@@ -27,7 +24,7 @@ export type SubTaskFn = (
   localParentTag?: string | number | null
 ) => Promise<number>;
 export type PauseTaskFn = () => void;
-export type EndStageFn = (err: string | object) => void;
+export type EndStageFn = (err?: string | object) => void;
 export type TaskResultFn = (result: ResultData) => void;
 export type StageFunctionHelpers = {
   get: GetFn;

@@ -5,12 +5,11 @@ import {
 
 const stageFn_generateSemanticQueryEmbeddings: StageFunction = async (
   helpers: StageFunctionHelpers
+  // eslint-disable-next-line @typescript-eslint/require-await
 ) => {
-  return await new Promise((resolve, reject) => {
-    setTimeout(() => {
-      resolve();
-    }, 1000);
-  });
+  // TODO
+  // Uses an embedding AI model to vectorize the semantic context query/queries.
+  helpers.endStage();
 };
 
 export default stageFn_generateSemanticQueryEmbeddings;

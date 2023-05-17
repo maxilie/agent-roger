@@ -13,7 +13,7 @@ import {
   AI_MODELS,
   env,
 } from "agent-roger-core";
-import { type WeaviateClient } from "weaviate-ts-client2";
+import { type WeaviateClient } from "weaviate-ts-client";
 import type * as neo4j from "neo4j-driver";
 import { stage, type StageFunctionHelpers } from "agent-roger-core";
 import { type RateLimiter } from "./rate-limiter.js";
@@ -213,7 +213,7 @@ class RunningTask {
               localParentTag?: string | number | null
             ) => this.subTaskHelper(input, localParentTag),
             pauseTask: () => this.pauseTaskHelper(),
-            endStage: (err: string | object) => this.endStageHelper(err),
+            endStage: (err?: string | object) => this.endStageHelper(err),
             taskResult: (resultData: ResultData) =>
               this.taskResultHelper(resultData),
           };

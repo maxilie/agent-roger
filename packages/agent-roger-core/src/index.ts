@@ -32,21 +32,15 @@ import {
 } from "./stage";
 import { TASK_PRESETS } from "./task";
 import {
-  Json,
-  JsonObj,
   Neo4JTask,
   ResultData,
   StageData,
-  TaskDefinition,
-  jsonObjSchema,
-  jsonSchema,
   resultDataSchema,
   stageDataSchema,
   taskBasicDataSchema,
   TaskBasicData,
   taskDataSchema,
   TaskData,
-  taskDefinitionSchema,
   taskUpdateSchema,
   TaskUpdateData,
   newRootTaskSchema,
@@ -71,6 +65,16 @@ import {
   runtimeErrorsSchema,
   RuntimeErrors,
 } from "./zod-schema";
+import {
+  Json,
+  JsonObj,
+  jsonObjSchema,
+  jsonSchema,
+} from "./zod-schema/stage-base/json.js";
+import {
+  TaskDefinition,
+  taskDefinitionSchema,
+} from "./zod-schema/stage-base/task-definition.js";
 
 export interface DB {
   tasks: typeof tasks;

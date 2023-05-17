@@ -4,7 +4,7 @@ const config = {
   parserOptions: {
     project: "packages/agent-roger-core/tsconfig.json",
   },
-  ignorePatterns: ["dist/src/env.d.mts", ".eslintrc.cjs"],
+  ignorePatterns: ["dist/src/env.d.mts", ".eslintrc.cjs", "drizzle.config.ts"],
 };
 
 module.exports = config;

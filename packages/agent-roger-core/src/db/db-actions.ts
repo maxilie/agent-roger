@@ -8,7 +8,6 @@ import * as crypto from "crypto";
 import { MAX_UNSYNC_TIME } from "../constants/index.js";
 import {
   stageDataSchema,
-  jsonObjSchema,
   InSchema_getTaskStageNData,
   OutSchema_getTaskBasicDataPlus,
   OutSchema_getTaskBasicDatas,
@@ -29,7 +28,14 @@ import {
   type InType_deleteTaskTree,
   type InType_getTaskTree,
   type OutType_getTaskTree,
+  type StageData,
 } from "../zod-schema/index.js";
+import {
+  type TasksStepsData,
+  subTasksSpawnedSchema,
+  taskStepsDataSchema,
+} from "../zod-schema/stage-base/index.js";
+import { jsonObjSchema } from "../zod-schema/stage-base/json.js";
 
 /**
  *
@@ -342,7 +348,7 @@ export const getTaskStageNData = async (
       .from(tasks)
       .where(eq(tasks.taskID, input.taskID));
     return results && results.length
-      ? stageDataSchema.parse(results[0].stageNData)
+      ? stageDataSchema.parse(results[0].stageNData || {})
       : null;
   } catch (e) {
     return null;
@@ -987,13 +993,14 @@ export const unpauseTaskTree = async (
 
 export const restartTaskTree = async (
   input: InType_deleteTaskTree,
-  neo4jDriver: neo4j.Driver
+  neo4jDriver: neo4j.Driver,
+  redis: RedisManager
 ): Promise<void> => {
   if (!!!input.taskID) {
     return;
   }
-  const descendentTaskIDs = new Set();
-  const ancestorTaskIDs = new Set();
+  const descendentTaskIDs = new Set<number>();
+  const ancestorTaskIDs = new Set<number>();
   try {
     const neo4jSession = neo4jDriver.session();
 
@@ -1037,43 +1044,427 @@ export const restartTaskTree = async (
     });
     ancestorTaskIDs.delete(input.taskID);
 
-    /*
+    // get data for all tasks in the tree
+    const taskDatas = await getTaskBasicDatas({
+      taskIDs: [input.taskID, ...ancestorTaskIDs, ...descendentTaskIDs],
+    });
+    if (!taskDatas) {
+      throw new Error("Failed to get task datas for task tree.");
+    }
 
-- Fail if taskToRestart is dead.
-- Create map of which tasks were previously paused: ancestorPreviouslyPaused.
-- Create a list of tasksToKill.
-- Get all direct ancestor task IDs from Neo4J.
-    - Get whether they’re paused in SQL and save to ancestorPreviouslyPaused.
-    - Mark them all as paused in SQL.
-- Clear redis queues.
-- While any ancestor task is in a redis queue, pause all the tasks in SQL again and clear redis queues again.
-- Once no ancestor tasks are in a redis queue, pause all the tasks in SQL one more time.
-- Start with dependencyParent = taskToRestart’s parentID task. dependencyTaskID = taskToRestart.
-    - Get all stage data for generate_sub_tasks and later stages.
-    - a) Get the stepIdx where stepIdxToSubTaskID[stepIdx] = dependencyTaskID.
-    - If dependencyTaskID = taskToRestart.taskID:
-        - create a new sub-task with the same init fields as taskToRestart.
-        - set internalData.stepIdxToSubTaskID[step] = new sub-task’s id.
-        - set internalData.dependencyStepOutput[step] = null.
-    - Get step indexes that depend on (internalData.stepDependencies) dependency stepIdx from a). For each stepIdx:
-        - Set internalData.dependencyStepOutput[stepIdx] = null.
-        - Get possible subTaskID from internalData.stepIdxToSubTaskID[stepIdx]:
-            - Get all oldTaskIDs from the Neo4J tree rooted at subTaskID.
-            - Add oldTaskIDs to tasksToKill.
-            - Remove all oldTaskIDs from redis waiting queue.
-            - Mark all oldTaskIDs as dead in SQL and Neo4J.
-    - Move on: dependencyTaskID = dependencyParent. dependencyParent = dependencyParent’s parent (or else end loop).
-- While true:
-    - Mark all tasksToKill as dead in SQL.
-    - While any tasksToKill, or any ancestor task, is in a redis queue: clear redis queues, m
-    - Wait
-    - Verify that every tasksToKill task is dead in SQL. Only break if true.
-- Unpause all ancestors that were not ancestorPreviouslyPaused=true.
-    */
+    // fail if taskToRestart is dead
+    const taskToRestart = taskDatas.find((task) => task.taskID == input.taskID);
+    if (!taskToRestart) {
+      throw new Error(
+        "Failed to get data for the task to restart (task id #" +
+          String(input.taskID) +
+          ")."
+      );
+    }
+    const taskIDsPreviouslyPaused = taskDatas
+      .filter((task) => ancestorTaskIDs.has(task.taskID) && task.paused)
+      .map((task) => task.taskID);
+
+    // clear redis task queues (or else task runner could modify the task tree while we're working on it)
+    const marker = crypto.webcrypto.randomUUID();
+    while (true) {
+      await redis.restartQueues([]);
+      // pause ancestor tasks and invalidate unsaved changes made by task runners
+      await sqlClient
+        .update(tasks)
+        .set({ paused: true, lastInteractionMarker: marker })
+        .where(inArray(tasks.taskID, Array.from(ancestorTaskIDs)));
+      await redis.restartQueues([]);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      let waitingQueueSize = await redis.redis.llen(REDIS_TASK_QUEUE.waiting);
+      if (waitingQueueSize > 0) continue;
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      waitingQueueSize = await redis.redis.llen(REDIS_TASK_QUEUE.waiting);
+      if (waitingQueueSize > 0) continue;
+      break;
+    }
+
+    // pause ancestor tasks again once redis queues are cleared
+    await sqlClient
+      .update(tasks)
+      .set({ paused: true, lastInteractionMarker: marker })
+      .where(inArray(tasks.taskID, Array.from(ancestorTaskIDs)));
+
+    // get taskToRestart's parent task
+    let dependencyTaskID = taskToRestart.taskID;
+    let nextAncestor = taskDatas.find(
+      (task) => task.taskID == taskToRestart.parentID
+    );
+    if (!nextAncestor) {
+      throw new Error(
+        `Failed to find data for taskToRestart's parent task, with id #${String(
+          taskToRestart.parentID
+        )}`
+      );
+    }
+
+    // roll back each next parent task up the tree
+    const dependentTreeRootIDs = new Set<number>();
+    while (true) {
+      // get stage data for generate-sub-tasks stage
+      let genSubTasksStageIdx = -1;
+      for (const [
+        stageIdx,
+        stagePreset,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      ] of nextAncestor?.taskDefinition?.stagePresets?.entries()) {
+        if (stagePreset.toLowerCase().includes("generatesubtask")) {
+          genSubTasksStageIdx = stageIdx;
+          break;
+        }
+      }
+      if (genSubTasksStageIdx == -1) {
+        throw new Error(
+          `Failed to find the sub-task generation stage in the task definition for task #${String(
+            nextAncestor.taskID
+          )}. Stage presets: ${String(
+            nextAncestor?.taskDefinition?.stagePresets
+          )}.`
+        );
+      }
+      const genSubTasksStageData = await getTaskStageNData({
+        taskID: nextAncestor.taskID,
+        stageN: genSubTasksStageIdx,
+      });
+      if (!genSubTasksStageData) {
+        throw new Error(
+          `Failed to get stage data for the sub-task generation stage in the task definition for task #${String(
+            nextAncestor.taskID
+          )}. Stage index: ${genSubTasksStageIdx}`
+        );
+      }
+      const tasksStepsDataParse =
+        taskStepsDataSchema.safeParse(genSubTasksStageData);
+      if (!tasksStepsDataParse.success) {
+        throw new Error(
+          `Failed to parse steps data from the sub-task generation stage data of task #${String(
+            nextAncestor.taskID
+          )}. Errors: ${JSON.stringify(tasksStepsDataParse.error, null, 2)}`
+        );
+      }
+      const tasksStepsData: TasksStepsData = tasksStepsDataParse.data;
+
+      // get those sub-tasks which ultimately depend on taskToRestart...
+      // find stepIdx of the dependency (the last visited child task, dependencyTaskID)
+      let dependencyStepIdxStr: string | undefined = Object.keys(
+        tasksStepsData.stepIdxToSubTaskID
+      ).find(
+        (stepIdxStr) =>
+          tasksStepsData.stepIdxToSubTaskID[stepIdxStr] == dependencyTaskID
+      );
+      if (!dependencyStepIdxStr) {
+        throw new Error(
+          `STAGE DATA IS LIKELY MISCONFIGURED: Could not find a "step" in the parent's stage data corresponding to the sub-task (#${dependencyTaskID}) in parent task #${String(
+            nextAncestor.taskID
+          )}. stepIdxToSubTaskID field: ${JSON.stringify(
+            tasksStepsData.stepIdxToSubTaskID
+          )}`
+        );
+      }
+      // find stepIdx for next dependent step (the step that depends on the previous dependency)
+      let dependentStepIdx: number | undefined =
+        tasksStepsData.stepIdxToDependentStepIdx[dependencyStepIdxStr];
+      while (dependentStepIdx) {
+        // mark the sub-task for the dependent step as a root of a tree which we will kill
+        const dependentTaskID =
+          tasksStepsData.stepIdxToSubTaskID[String(dependentStepIdx)];
+        dependentTreeRootIDs.add(dependentTaskID);
+        // remove the sub-task record for the dependent step
+        delete tasksStepsData.stepIdxToSubTaskID[String(dependentStepIdx)];
+        if (!dependentTaskID) {
+          // chain of dependent steps ends if the next dependent step hasn't yet generated a sub-task
+          break;
+        }
+        // get next dependent step
+        dependencyStepIdxStr = String(dependentStepIdx);
+        dependentStepIdx =
+          tasksStepsData.stepIdxToDependentStepIdx[dependencyStepIdxStr];
+      }
+
+      // create rolled back stage data
+      const subTasksSpawnedParse = subTasksSpawnedSchema.safeParse(
+        genSubTasksStageData.fields.subTasksSpawned
+      );
+      if (!subTasksSpawnedParse.success) {
+        throw new Error(
+          `Failed to parse SubTasksSpawned data from the sub-task generation stage data of task #${String(
+            nextAncestor.taskID
+          )}. Errors: ${JSON.stringify(subTasksSpawnedParse.error, null, 2)}`
+        );
+      }
+      const subTasksSpawned = subTasksSpawnedParse.data;
+      const rolledBackStageData: StageData = {
+        ended: false,
+        subTasksSpawned:
+          subTasksSpawned.filter(
+            (subTaskData) => !dependentTreeRootIDs.has(subTaskData.taskID)
+          ) ?? [],
+        fields: { tasksStepsData: tasksStepsData },
+      };
+
+      // erase ancestor's task data that depends on taskToRestart
+      await sqlClient
+        .update(tasks)
+        .set({
+          success: null,
+          paused: true,
+          dead: false,
+          lastEndedStage: genSubTasksStageIdx - 1,
+          lastInteractionMarker: null,
+          timeLastUpdated: new Date(),
+          resultData: null,
+          runtimeErrors: null,
+          ...(genSubTasksStageIdx == 0
+            ? { stage0Data: rolledBackStageData }
+            : {}),
+          ...(genSubTasksStageIdx == 1
+            ? { stage1Data: rolledBackStageData }
+            : genSubTasksStageIdx < 1
+            ? { stage1Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 2
+            ? { stage2Data: rolledBackStageData }
+            : genSubTasksStageIdx < 2
+            ? { stage2Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 3
+            ? { stage3Data: rolledBackStageData }
+            : genSubTasksStageIdx < 3
+            ? { stage3Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 4
+            ? { stage4Data: rolledBackStageData }
+            : genSubTasksStageIdx < 4
+            ? { stage4Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 5
+            ? { stage5Data: rolledBackStageData }
+            : genSubTasksStageIdx < 5
+            ? { stage5Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 6
+            ? { stage6Data: rolledBackStageData }
+            : genSubTasksStageIdx < 6
+            ? { stage6Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 7
+            ? { stage7Data: rolledBackStageData }
+            : genSubTasksStageIdx < 7
+            ? { stage7Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 8
+            ? { stage8Data: rolledBackStageData }
+            : genSubTasksStageIdx < 8
+            ? { stage8Data: null }
+            : {}),
+        })
+        .where(eq(tasks.taskID, nextAncestor.taskID));
+      await sqlClient
+        .update(tasks)
+        .set({
+          ...(genSubTasksStageIdx == 9
+            ? { stage9Data: rolledBackStageData }
+            : genSubTasksStageIdx < 9
+            ? { stage9Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 10
+            ? { stage10Data: rolledBackStageData }
+            : genSubTasksStageIdx < 10
+            ? { stage10Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 11
+            ? { stage11Data: rolledBackStageData }
+            : genSubTasksStageIdx < 11
+            ? { stage11Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 12
+            ? { stage12Data: rolledBackStageData }
+            : genSubTasksStageIdx < 12
+            ? { stage12Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 13
+            ? { stage13Data: rolledBackStageData }
+            : genSubTasksStageIdx < 13
+            ? { stage13Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 14
+            ? { stage14Data: rolledBackStageData }
+            : genSubTasksStageIdx < 14
+            ? { stage14Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 15
+            ? { stage15Data: rolledBackStageData }
+            : genSubTasksStageIdx < 15
+            ? { stage15Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 16
+            ? { stage16Data: rolledBackStageData }
+            : genSubTasksStageIdx < 16
+            ? { stage16Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 17
+            ? { stage17Data: rolledBackStageData }
+            : genSubTasksStageIdx < 17
+            ? { stage17Data: null }
+            : {}),
+        })
+        .where(eq(tasks.taskID, nextAncestor.taskID));
+      await sqlClient
+        .update(tasks)
+        .set({
+          ...(genSubTasksStageIdx == 18
+            ? { stage18Data: rolledBackStageData }
+            : genSubTasksStageIdx < 18
+            ? { stage18Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 19
+            ? { stage19Data: rolledBackStageData }
+            : genSubTasksStageIdx < 19
+            ? { stage19Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 20
+            ? { stage20Data: rolledBackStageData }
+            : genSubTasksStageIdx < 20
+            ? { stage20Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 21
+            ? { stage21Data: rolledBackStageData }
+            : genSubTasksStageIdx < 21
+            ? { stage21Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 22
+            ? { stage22Data: rolledBackStageData }
+            : genSubTasksStageIdx < 22
+            ? { stage22Data: null }
+            : {}),
+          ...(genSubTasksStageIdx == 23
+            ? { stage23Data: rolledBackStageData }
+            : {}),
+        })
+        .where(eq(tasks.taskID, nextAncestor.taskID));
+
+      // get next parent task up the tree
+      if (nextAncestor.parentID === null) {
+        break;
+      }
+      const nextParent = taskDatas.find(
+        (task) => task.taskID == nextAncestor?.parentID
+      );
+      if (!nextParent) {
+        throw new Error(
+          `Failed to find data for task #${String(
+            nextAncestor.taskID
+          )}'s parent task(parent task #${String(nextAncestor.parentID)}`
+        );
+      }
+      dependencyTaskID = nextAncestor.taskID;
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      nextAncestor = nextParent!;
+    }
+
+    // get dependent task trees from Neo4J
+    const taskIDsToKill = new Set<number>();
+    const dependentTreesResults = await neo4jSession.run(
+      "UNWIND $rootTaskIDsParam AS rootTaskID \
+        MATCH (root_task:Task {taskID: rootTaskID}) \
+        CALL apoc.path.subgraphAll(root_task, {relationshipFilter: 'SPAWNED>', maxLevel: -1}) YIELD nodes, relationships \
+        UNWIND relationships AS relation \
+        RETURN startNode(relation).taskID AS source, endNode(relation).taskID AS target;",
+      {
+        rootTaskIDsParam: Array.from(dependentTreeRootIDs),
+      }
+    );
+    dependentTreesResults.records.forEach((record) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      taskIDsToKill.add(record.get("source").properties.taskID.toInt());
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      taskIDsToKill.add(record.get("target").properties.taskID.toInt());
+    });
+
+    // kill descendents and dependents (of taskToRestart) in SQL
+    descendentTaskIDs.forEach((taskID) => {
+      taskIDsToKill.add(taskID);
+    });
+    taskIDsToKill.delete(input.taskID);
+    await sqlClient
+      .update(tasks)
+      .set({ dead: true })
+      .where(inArray(tasks.taskID, Array.from(taskIDsToKill)));
+
+    // kill descendents and dependents (of taskToRestart) in Neo4J
+    await neo4jSession.run(
+      "UNWIND $taskIDsParam AS taskID \
+        MATCH (task:Task {taskID: taskID}) \
+        SET task.isDead = 'true'",
+      {
+        taskIDsParam: Array.from(taskIDsToKill),
+      }
+    );
+
+    // unpause ancestors which weren't paused before
+    await sqlClient
+      .update(tasks)
+      .set({ paused: false })
+      .where(
+        inArray(
+          tasks.taskID,
+          Array.from(ancestorTaskIDs).filter(
+            (taskID) => !taskIDsPreviouslyPaused.includes(taskID)
+          )
+        )
+      );
+
+    // delete the task's data and restart it
+    await sqlClient
+      .update(tasks)
+      .set({
+        paused: false,
+        dead: false,
+        success: null,
+        lastEndedStage: -1,
+        lastInteractionMarker: null,
+        timeLastUpdated: new Date(),
+        resultData: null,
+        runtimeErrors: null,
+        stage0Data: null,
+        stage1Data: null,
+        stage2Data: null,
+        stage3Data: null,
+        stage4Data: null,
+        stage5Data: null,
+        stage6Data: null,
+        stage7Data: null,
+        stage8Data: null,
+        stage9Data: null,
+        stage10Data: null,
+        stage11Data: null,
+        stage12Data: null,
+        stage13Data: null,
+        stage14Data: null,
+        stage15Data: null,
+        stage16Data: null,
+        stage17Data: null,
+        stage18Data: null,
+        stage19Data: null,
+        stage20Data: null,
+        stage21Data: null,
+        stage22Data: null,
+        stage23Data: null,
+      })
+      .where(eq(tasks.taskID, input.taskID));
 
     // handle errors
   } catch (error) {
-    console.error("FAILED to restart task tree task: ", input.taskID);
-    console.error(error);
+    console.error("FAILED to restart task tree at task  #", input.taskID);
+    if (error instanceof Error) {
+      console.error(error.message);
+    } else {
+      console.error(error);
+    }
   }
 };

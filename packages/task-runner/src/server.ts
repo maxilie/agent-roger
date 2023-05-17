@@ -2,7 +2,7 @@
 console.log("Starting up! Importing dependencies...");
 
 import * as neo4j from "neo4j-driver";
-import weaviate, { type WeaviateClient } from "weaviate-ts-client2";
+import weaviate, { type WeaviateClient } from "weaviate-ts-client";
 
 import { db, env, REDIS_TASK_QUEUE, RedisManager } from "agent-roger-core";
 import {
@@ -10,7 +10,6 @@ import {
   MIN_TIME_BETWEEN_REDIS_CALLS,
 } from "./constants.js";
 import { RunningTask } from "./running-task.js";
-
 import { RateLimiter } from "./rate-limiter.js";
 
 // globals
@@ -62,7 +61,7 @@ const initialize = async () => {
 
   // connect to redis & init pipeline
   redis = new RedisManager();
-  redis.redis.ping();
+  await redis.redis.ping();
   console.log("connected to redis");
 
   // restart task queue
@@ -243,6 +242,7 @@ process.on("SIGINT", () => {
       console.log(
         `Waiting for ${String(runningTaskIDs.length)} tasks to clean up...`
       );
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       Promise.all(runningTaskCleanupFns).catch((error) => {});
       let retries = 0;
       while (retries < 5 && runningTaskIDs.length > 0) {

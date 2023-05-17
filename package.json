@@ -8,7 +8,7 @@
     "libs/*"
   ],
   "scripts": {
-    "build:core": "yarn workspace weaviate-ts-client2 build && yarn workspace agent-roger-core build",
+    "build:core": "yarn workspace agent-roger-core build",
     "build:task-runner": "cd packages/task-runner && docker build --no-cache ../.. -t agent-roger-task-runner -f ./Dockerfile",
     "build:dashboard-prod": "yarn run build:core && yarn workspace agent-roger-dashboard build-prod",
     "dev": "yarn workspace agent-roger-dashboard dev",

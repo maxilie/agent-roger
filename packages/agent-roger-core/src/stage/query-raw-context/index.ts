@@ -5,12 +5,11 @@ import {
 
 const stageFn_queryRawContext: StageFunction = async (
   helpers: StageFunctionHelpers
+  // eslint-disable-next-line @typescript-eslint/require-await
 ) => {
-  return await new Promise((resolve, reject) => {
-    setTimeout(() => {
-      resolve();
-    }, 1000);
-  });
+  // TODO
+  // Queries the document database using the semantic context query vector(s) and the keywords queries.
+  helpers.endStage();
 };
 
 export default stageFn_queryRawContext;

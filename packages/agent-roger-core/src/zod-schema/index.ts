@@ -1,45 +1,14 @@
 import { z } from "zod";
 import type * as neo4j from "neo4j-driver";
-
-// this is the best (and only valid?) way to define JSON in zod
-// see: https://zod.dev/?id=json-type
-export const literalSchema = z.union([
-  z.string(),
-  z.number(),
-  z.boolean(),
-  z.null(),
-]);
-export type Literal = z.infer<typeof literalSchema>;
-export type Json = Literal | { [key: string]: Json } | Json[];
-export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
-  z.union([literalSchema, z.array(jsonSchema), z.record(jsonSchema)])
-);
-export type JsonObj = { [key: string]: Json };
-export const jsonObjSchema: z.ZodType<JsonObj> = z.record(jsonSchema);
-
-// task definition
-export type TaskDefinition = {
-  isAbstract: boolean;
-  stagePresets: string[];
-};
-
-export const taskDefinitionSchema = z.object({
-  isAbstract: z.boolean().default(false),
-  stagePresets: z.array(z.string()).min(1).max(24),
-});
+import { jsonObjSchema, jsonSchema } from "./stage-base/json";
+import { taskDefinitionSchema } from "./stage-base/task-definition";
+import { subTasksSpawnedSchema } from "./stage-base";
 
 // stage data
 export const stageDataSchema = z.object({
   ended: z.boolean().default(false),
-  subTasksSpawned: z
-    .array(
-      z.object({
-        taskID: z.number(),
-        localParentTag: z.union([z.string(), z.number()]).nullable(),
-      })
-    )
-    .default([]),
-  fields: jsonObjSchema,
+  subTasksSpawned: subTasksSpawnedSchema,
+  fields: jsonObjSchema.default({}),
 });
 export type StageData = z.infer<typeof stageDataSchema>;
 

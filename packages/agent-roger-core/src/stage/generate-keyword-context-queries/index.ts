@@ -5,12 +5,11 @@ import {
 
 const stageFn_generateKeywordContextQueries: StageFunction = async (
   helpers: StageFunctionHelpers
+  // eslint-disable-next-line @typescript-eslint/require-await
 ) => {
-  return await new Promise((resolve, reject) => {
-    setTimeout(() => {
-      resolve();
-    }, 1000);
-  });
+  // TODO
+  // Context hooks are used to generate a list of keywords that are likely to be relevant to the task.
+  helpers.endStage();
 };
 
 export default stageFn_generateKeywordContextQueries;

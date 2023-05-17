@@ -4,6 +4,7 @@ const config = {
   parserOptions: {
     project: "packages/task-runner/tsconfig.json",
   },
+  ignorePatterns: ["renameToCjs.cjs"],
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
