@@ -11,7 +11,7 @@
   "scripts": {
     "lint": "eslint .",
     "build": "rm -rf dist-temp && node add-js-extensions.cjs && tsc -p tsconfig.dist-temp.json",
-    "db-push": "yarn drizzle-kit push:mysql"
+    "db-push": "sudo yarn drizzle-kit push:mysql"
   },
   "dependencies": {
     "@planetscale/database": "1.7.0",

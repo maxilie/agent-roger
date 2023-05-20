@@ -1,8 +1,11 @@
 import { z } from "zod";
 import type * as neo4j from "neo4j-driver";
 import { jsonObjSchema, jsonSchema } from "./stage-base/json";
-import { taskDefinitionSchema } from "./stage-base/task-definition";
-import { subTasksSpawnedSchema } from "./stage-base";
+import {
+  subTasksSpawnedSchema,
+  taskDefinitionSchema,
+  type TaskDefinition,
+} from "./stage-base";
 
 // stage data
 export const stageDataSchema = z.object({
@@ -38,6 +41,7 @@ export const taskBasicDataSchema = z.object({
   initialInputFields: jsonObjSchema.nullable(),
   initialContextFields: jsonObjSchema.nullable(),
   initialContextSummary: z.string().nullable(),
+  memoryBankID: z.string().nullable(),
   timeCreated: z.date().default(() => new Date()),
   timeLastUpdated: z.date().default(() => new Date()),
   resultData: resultDataSchema.nullable(),
@@ -93,6 +97,7 @@ export const newChildTaskSchema = z.object({
   initialInputFields: jsonObjSchema.nullable(),
   initialContextFields: jsonObjSchema.nullable(),
   initialContextSummary: z.string().nullable(),
+  memoryBankID: z.string().nullable(),
 });
 
 // schema for values that can be used to update a task
@@ -105,6 +110,7 @@ export const taskUpdateSchema = z.object({
   initialInputFields: jsonObjSchema.nullish(),
   initialContextFields: jsonObjSchema.nullish(),
   initialContextSummary: z.string().nullish(),
+  memoryBankID: z.string().nullish(),
   resultData: resultDataSchema.nullish(),
   runtimeErrors: runtimeErrorsSchema.nullish(),
   stage0Data: stageDataSchema.nullish(),
@@ -195,6 +201,7 @@ export const InSchema_createChildTask = z.object({
   initialInputFields: jsonObjSchema.nullish(),
   initialContextFields: jsonObjSchema.nullish(),
   initialContextSummary: z.string().nullish(),
+  memoryBankID: z.string().nullish(),
 });
 export const OutSchema_createChildTask = z.number();
 export type InType_createChildTask = z.infer<typeof InSchema_createChildTask>;
@@ -229,3 +236,11 @@ export type Neo4JTask = {
     isDead: string;
   };
 };
+
+export type TrainingDataExample = {
+  input: string[];
+  output: string;
+  qualityRating: number;
+};
+
+export { taskDefinitionSchema, type TaskDefinition };

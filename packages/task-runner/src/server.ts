@@ -38,11 +38,10 @@ const initialize = async () => {
     host: env.WEAVIATE_HOST,
     apiKey: new weaviate.ApiKey(env.WEAVIATE_KEY),
   });
-  // TODO test connection
-  // client
-  // .schema
-  // .getter()
-  // .do()
+  // ensure weaviate schema are created
+  try {
+    await weaviateClient.schema.getter().do();
+  } catch (_) {}
   // .then((res: any) => {
   //   console.log(res);
   // })

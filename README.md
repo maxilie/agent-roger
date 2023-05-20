@@ -12,17 +12,33 @@ demo pics and video go here
 
 Agent Roger is an AI system that can complete your tasks by intelligently spawning and processing its own sub-tasks.
 
-More broadly speaking, it is a somewhat novel _implementation_ for the idea of "AI using other AI."
+Even more broadly speaking, it is a somewhat novel _implementation_ for the idea of "AI using other AI."
 
 Its purpose is similar to that of LangChain, BabyAGI, AutoGPT, and other task-based and execution-loop-based systems.
 
 However, there are key differences in Agent Roger:
 
-### Serves as an application rather than a high-level framework, but is still modular enough to be expanded upon.
+### Serves as an application rather than a framework:
 
-- Both you, the human, and your AI can define custom Tasks and sub-tasks using simple JSON text.
-- Each "Stage" of a Task's lifecycle has its own logic and variables, and it's simple to code new Stages and use them to define a new Task (as JSON).
-- Stages (functions) allow you to place limits on the AI. It can generate new tasks as JSON configurations using the stage functions which you provide it.
+- This repo contains code to launch a UI and task runner process(es) that require particular database setups, which are described below in the "Getting Started" section.
+- Within the rigid structure of the task tree system, you can very easily customize the following parts of the `agent-roger-core` package:
+  - Prompts.
+  - Stage functions. A stage function is a function that a task continuously calls until the stage is ended, at which point the task moves on to the next stage function.
+  - Task definitions. A `TaskDefinition` is an array of stage functions to run in order before passing the task's output to its parent task. Each stage function has access to variables saved by the stage functions before it.
+  - Task presets. A task preset is just a name for a `TaskDefinition`. Creating a task preset allows the AI to spawn a task that runs your custom stage functions.
+- The LLM can accept any arbitrary JSON fields you provide it, and return JSON values for the named `outputFields` you request.
+  - TODO: We will move to Microsoft's `guidance` format to: 1) more effectively communicate to the LLM how to use the tools it has available to it, and 2) enable LLM prompts to include a "blank space" for each named output field inline of one big context string (instead of being limited to a list of context fields and another list of requested output fields)
+- To give the AI new functionality:
+  - Create an `index.ts` file in a new folder: `packages/agent-roger-core/src/stage/task-<custom-task-name>`.
+    - To keep it simple, you can perform all the task's logic in a single stage function.
+    - Create your stage function by following the patterns of existing stage functions, like those in `packages/agent-roger-core/src/stage/task-execute-shell/index.ts`.
+    - Follow the pattern for adding your new stage function(s) to the `packages/agent-roger-core/stage/presets.ts` file.
+  - Create an `index.ts` file in a new folder: `packages/agent-roger-core/src/task/<custom-task-name>`.
+    - Create a new task definition following the examples in other tasks. For example, `packages/agent-roger-core/src/task/execute-shell/index.ts`.
+      - The "isAbstract" field should almost always be set to false. The system should only have one abstract task available to it (the task preset called "abstract" - see below file), which is responsible for breaking down an abstract task into simpler, more concrete sub-tasks.
+    - Follow the pattern for adding your new task definition to the `packages/agent-roger-core/task/presets.ts` file.
+  - Add a `SuggestedApproach` for your new task preset in the `packages/agent-roger-core/constants.prompts.ts` file, in the variable, `SUGGESTED_APPROACHES.generateSubTasks`.
+    - This tells.
 
 ### Uses a dynamic _task tree_ instead of a queue:
 
@@ -32,10 +48,17 @@ However, there are key differences in Agent Roger:
 
 - A single misstep in a sub-task does not necessarily ruin the overall task.
 - A failed sub-task will try to improve until it is successful or has exhausted all reasonable options.
-- User can provide feedback on a sub-task and restart a sub-tree while preserving the rest.
+- User can provide feedback on a sub-task and restart a sub-tree while preserving the rest of the tree's independent logic.
 - Independent sub-tasks can run concurrently or even on multiple machines.
 
-### Contains partly hard-coded optimizations for handling context and "memory" of previous experiences.
+### AI can switch its context between a global memory bank and local, task-specific memory banks.
+
+- Memory banks are vector databases that store JSON documents and their embeddings.
+- Currently we only store indexes of local files and summaries of previous tasks. Soon we will also store indexes of web content, information that the AI determines is commonly needed, and summaries of task trees.
+- By default, a new memory bank is created for each new root task (user input), and documents are stored to both the new local memory bank and the global memory bank.
+  - To save time, the AI will use the global memory bank if you tell it to (using plain english) in the root task's inputFields. For example, `inputFields: { "instructions": "Do some task. Use the global memory bank." }`.
+  - Using the global memory bank is a trade-off: Tasks using the global memory bank will progress quicker as you run more of them, because they will remember how similar tasks were run and will already have the filesystem indexed. However, this could lead to the system remembering outdated prompts and file contents, which could cause the task to fail.
+  - For best results, do not tell the system to use the global memory bank.
 
 ### Practically free (excepting cost of inferencing tokens) to get started:
 
@@ -140,11 +163,10 @@ To run the dashboard on your local computer:
 yarn install
 
 # build core packages
-yarn build:weaviate-ts-client
-yarn build:agent-roger-core
+yarn run build:core
 
 # START THE DASHBOARD
-yarn start:dashboard
+yarn run start:dashboard # or:  yarn run dev
 ```
 
 </details>

@@ -27,18 +27,11 @@ export const tasks = mysqlTable("tasks", {
   initialInputFields: json("initial_input_fields"),
   initialContextFields: json("initial_context_fields"),
   initialContextSummary: text("initial_context_summary"),
+  memoryBankID: text("memory_bank_id"),
   // timestamps
   timeCreated: timestamp("time_created").notNull().defaultNow(),
   timeLastUpdated: timestamp("time_last_updated").notNull().defaultNow(),
-  // data from intermediary stages of task lifecycle
-  // semanticContextQueries: json("semantic_context_queries"),
-  // keywordContextQueries: json("keyword_context_queries"),
-  // semanticQueryEmbeddings: json("semantic_query_embeddings"),
-  // rawContext: json("raw_context"),
-  // contextSummary: text("context_summary"),
-  // stepsAndSuccessCriteria: json("steps_and_success_criteria"),
-  // subTasksSummary: text("sub_tasks_summary"),
-  // validationSummary: text("validation_summary"),
+  // task data
   resultData: json("result_data"),
   runtimeErrors: json("runtime_errors"),
   stage0Data: json("stage_0_data"),
@@ -65,4 +58,14 @@ export const tasks = mysqlTable("tasks", {
   stage21Data: json("stage_21_data"),
   stage22Data: json("stage_22_data"),
   stage23Data: json("stage_23_data"),
+});
+
+/**
+ * AI training data.
+ */
+export const trainingData = mysqlTable("training_data", {
+  id: serial("id").primaryKey(),
+  inputChatMlMessages: json("input").notNull(),
+  outputString: text("output").notNull(),
+  qualityRating: int("quality_rating").notNull().default(0),
 });

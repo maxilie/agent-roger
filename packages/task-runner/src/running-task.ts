@@ -12,7 +12,11 @@ import {
   type TaskUpdateData,
   AI_MODELS,
   env,
+  type TextLlmInput,
+  assembleTextLlmInput,
+  type TrainingDataExample,
 } from "agent-roger-core";
+import * as crypto from "crypto";
 import { type WeaviateClient } from "weaviate-ts-client";
 import type * as neo4j from "neo4j-driver";
 import { stage, type StageFunctionHelpers } from "agent-roger-core";
@@ -75,6 +79,8 @@ class RunningTask {
   wasPaused: boolean;
   startTime: Date;
   timeStageWasCalled: { [stageIdx: number]: number };
+  memoryBankID: "global" | string | null;
+  unsavedTrainingData: TrainingDataExample[];
 
   constructor(
     taskID: number,
@@ -100,6 +106,8 @@ class RunningTask {
     this.startTime = new Date();
     this.taskBasicData = null;
     this.timeStageWasCalled = {};
+    this.memoryBankID = null;
+    this.unsavedTrainingData = [];
   }
 
   async runNextStages() {
@@ -118,6 +126,7 @@ class RunningTask {
       // get task definition
       const taskDefinition = schema.taskDefinition.parse(task.taskDefinition);
       const finalStageIdx = taskDefinition.stagePresets.length - 1;
+      this.memoryBankID = task.memoryBankID;
 
       // get stage data
       this.localStageIdx = task.lastEndedStage + 1;
@@ -191,13 +200,16 @@ class RunningTask {
           }
 
           const helpers: StageFunctionHelpers = {
+            initialInputFields: task.initialInputFields || {},
+            initialContextFields: task.initialContextFields || {},
+            initialContextSummary: task.initialContextSummary || "",
             get: (key: string) => this.getHelper(key),
             set: (key: string, val: Json | null) => this.setHelper(key, val),
-            textLLM: (data: {
-              input: string[];
-              numInputTokens: number;
-              maxOutputTokens?: number;
-            }) => this.textLLMHelper(data),
+            // if null or "global", the global memory bank will be used
+            memoryBankID: this.memoryBankID,
+            switchMemoryBank: (newMemoryBankID: "global" | string | null) =>
+              this.switchMemoryBankHelper(newMemoryBankID),
+            textLLM: (data: TextLlmInput) => this.textLlmHelper(data),
             embeddingLLM: (data: {
               input: string[];
               numInputTokens: number[];
@@ -224,7 +236,9 @@ class RunningTask {
           console.error(err);
           // mark error and pause task
           // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-          this.endStageHelper(err ?? "Unknown error");
+          this.endStageHelper(
+            err ? (err as Error).toString() : "Unknown error"
+          );
           // save data
           await this.saveOrCleanup();
           // remove from redis queue
@@ -358,15 +372,93 @@ class RunningTask {
   }
 
   /**
-   * @param maxOutputTokens the max number of tokens to generate; if set too high or if unset, defaults to (model_maximum - num_input_tokens)
-   * @param input messages for an instruction LLM e.g. [`System: You are a JSON machine.`, `Json: {...}`]
-   * @returns the JSON output fields of the LLM. e.g. {someRequestedFieldName: value, someGeneratedFieldName: value}
+   * Uses the llm to generate the `data.requestedOutputFields` and validates it with another llm.
    */
-  async textLLMHelper(data: {
-    input: string[];
-    numInputTokens: number;
-    maxOutputTokens?: number;
-  }): Promise<JsonObj> {
+  async textLlmHelper(data: TextLlmInput): Promise<JsonObj> {
+    let firstOutput = "";
+    let secondOutput = "";
+    let rawJson: unknown = {};
+    let parsedJson: JsonObj = {};
+    try {
+      // get response or error
+      firstOutput = await this.getTextLlmString(data);
+
+      // run first output through the llm to fix formatting
+      const secondPrompt =
+        "System: You are a highly logical, careful, and thorough JSON input/output machine. You can only output properly formatted \
+        JSON, and nothing else. Your output is a JSON object, meaning: it is wrapped with curly braces; field names are strings \
+        wrapped with double quotes; field values are either string, number, boolean, array, null, or JSON object; there is no added \
+        explanation text, comments, or readability formatting (like using ``` ... ``` to 'code fence' blocks of code, or **...** to \
+        bold text, or line breaks and indentation between JSON fields).\
+        \n Obviously, you are capable of producing readability formatting within your output fields -- if, for example, the field is \
+        supposed to generate a string containing markdown or HTML -- but you do not put unexpected formatting in fields that call for \
+        code/text/JSON/array/summary/etc., nor do you add formatting between fields.\
+        \n Your top priority is to ensure that your output is fully string-escaped and otherwise properly formatted so as to be \
+        parseable by the JSON.parse() function. If one were to call JSON.parse(yourOutputString), it should return a valid object, \
+        beginning and ending with curly braces.\
+        \n Whenever the user gives you a json input, you validate it and return a better formatted version of it, if possible, to make \
+        sure it can be parsed by JSON.parse().";
+      const secondLlmInput = assembleTextLlmInput({
+        prompt: {},
+        expectedOutputFields: {},
+        systemMessage: secondPrompt,
+      });
+      secondLlmInput.chatMlMessages = [secondPrompt, firstOutput];
+      secondOutput = await this.getTextLlmString(secondLlmInput);
+
+      // parse llm output
+      secondOutput = secondOutput.trim();
+
+      if (!secondOutput.startsWith("{")) {
+        if (secondOutput.includes("{")) {
+          secondOutput = secondOutput.slice(secondOutput.indexOf("{"));
+        } else {
+          secondOutput = "{" + secondOutput;
+        }
+      }
+      if (!secondOutput.endsWith("}")) {
+        if (secondOutput.includes("}")) {
+          secondOutput = secondOutput.slice(
+            0,
+            secondOutput.lastIndexOf("}") + 1
+          );
+        } else {
+          secondOutput = secondOutput + "}";
+        }
+      }
+
+      // convert to json
+      rawJson = JSON.parse(secondOutput);
+      parsedJson = schema.jsonObj.parse(rawJson);
+
+      // add example to list of training data to save later
+      this.unsavedTrainingData.push({
+        input: data.chatMlMessages,
+        output: JSON.stringify(parsedJson),
+        qualityRating: 0,
+      });
+
+      // check if the AI has requested to pause the task
+      if (parsedJson.pauseReason) {
+        this.setHelper("pauseReason", parsedJson.pauseReason);
+        this.setHelper("failedLlmOutput", JSON.stringify(parsedJson));
+      }
+      return parsedJson;
+    } catch (error) {
+      const errMessage = `Failed to generate llm output: ${
+        (error as Error).name
+      }: ${(error as Error).message}. 
+        \n First output: ${firstOutput}
+        \n Second output: ${secondOutput}
+        \n Raw JSON: ${JSON.stringify(rawJson, null, 2)}
+        \n Parsed JSON: ${JSON.stringify(parsedJson, null, 2)}`;
+      this.setHelper("pauseReason", errMessage);
+      throw new Error(errMessage);
+    }
+  }
+
+  // generates llm output
+  async getTextLlmString(data: TextLlmInput): Promise<string> {
     // decide which model to use (20% chance to use GPT-4 when GPT-3.5 would suffice)
     const modelInfo =
       env.GPT4_ENABLED && (data.numInputTokens > 2000 || Math.random() < 0.2)
@@ -385,9 +477,9 @@ class RunningTask {
         " TOKENS! (max combined input & output is ",
         modelMaxTokens,
         " tokens). Returning no data for text LLM inference request with input: ",
-        data.input
+        data.chatMlMessages
       );
-      return {};
+      return "";
     }
 
     // wait for rate-limiting
@@ -405,14 +497,14 @@ class RunningTask {
     if (retries >= maxRetries) {
       console.error(
         "COULD NOT SEND OPENAI INFERENCE REQUEST BECAUSE OF RATE-LIMITING. Input: ",
-        data.input
+        data.chatMlMessages
       );
-      return {};
+      return "";
     }
 
     // format input for OpenAI
-    const messages: Array<ChatCompletionRequestMessage> = data.input.map(
-      (msg) => {
+    const messages: Array<ChatCompletionRequestMessage> =
+      data.chatMlMessages.map((msg) => {
         const msgParts = msg.split(":");
         const roleStr = msgParts[0].trim().toLowerCase();
         const isSystem = roleStr == "system";
@@ -423,8 +515,7 @@ class RunningTask {
           content: msgParts.slice(1).join(":").trim(),
           ...(!isSystem && !isAssistant ? { user: roleStr } : {}),
         };
-      }
-    );
+      });
 
     // call OpenAI
     const openai = new OpenAIApi(
@@ -452,46 +543,14 @@ class RunningTask {
             JSON.stringify(response, null, 2)
         );
       }
+      return outputStr;
     } catch (err) {
       console.error(
         "Failed to call OpenAI chat completion endpoint with request: ",
         requestConfig
       );
       console.error("Details: ", err);
-      return {};
-    }
-
-    // parse JSON string from the LLM
-    outputStr = outputStr.trim();
-
-    if (!outputStr.startsWith("{")) {
-      if (outputStr.includes("{")) {
-        outputStr = outputStr.slice(outputStr.indexOf("{"));
-      } else {
-        outputStr = "{" + outputStr;
-      }
-    }
-    if (!outputStr.endsWith("}")) {
-      if (outputStr.includes("}")) {
-        outputStr = outputStr.slice(0, outputStr.lastIndexOf("}") + 1);
-      } else {
-        outputStr = outputStr + "}";
-      }
-    }
-    try {
-      const outputRawJson: unknown = JSON.parse(outputStr);
-      const outputJson = schema.jsonObj.parse(outputRawJson);
-      return outputJson;
-    } catch (error) {
-      console.error(
-        "Failed to parse JSON string from OpenAI. Will return empty object. \nRequest: ",
-        requestConfig,
-        "\nOutput string:",
-        outputStr,
-        "\nDecoding error: ",
-        error
-      );
-      return {};
+      return "";
     }
   }
 
@@ -601,6 +660,7 @@ class RunningTask {
         initialInputFields: input.initialInputFields,
         initialContextFields: input.initialContextFields,
         initialContextSummary: input.initialContextSummary,
+        memoryBankID: this.memoryBankID,
       },
       this.neo4jDriver,
       this.redis
@@ -627,6 +687,27 @@ class RunningTask {
    */
   taskResultHelper(resultData: ResultData) {
     this.unsavedResultData = resultData;
+  }
+
+  /**
+   * Switches the memory bank used by the task and any children created after this point.
+   */
+  async switchMemoryBankHelper(
+    newMemoryBankID: "global" | string | null
+  ): Promise<void> {
+    const memoryBankID = newMemoryBankID || crypto.webcrypto.randomUUID();
+    this.memoryBankID = memoryBankID;
+    // create schema if it doesn't exist
+    const documentClass = "Class-" + memoryBankID;
+    try {
+      await this.weaviateClient.schema
+        .classCreator()
+        .withClass({
+          class: documentClass,
+          vectorizer: "none",
+        })
+        .do();
+    } catch (_) {}
   }
 
   /**
@@ -676,6 +757,7 @@ class RunningTask {
         ? this.localStageIdx
         : this.localStageIdx - 1;
       const newTaskData: TaskUpdateData = schema.updateTask.parse({
+        memoryBankID: this.memoryBankID,
         paused: this.wasPaused ? true : this.taskBasicData?.paused,
         success: taskSucceeded,
         lastEndedStage,
@@ -762,6 +844,11 @@ class RunningTask {
         this.neo4jDriver,
         this.redis
       );
+
+      // save training data
+      for (const example of this.unsavedTrainingData) {
+        await db.saveTrainingData(example);
+      }
     } catch (err) {}
   }
 }

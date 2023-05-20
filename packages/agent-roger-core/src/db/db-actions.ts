@@ -1,5 +1,5 @@
 import { connection, sqlClient } from "./sql-client.js";
-import { tasks } from "./sql-schema.js";
+import { tasks, trainingData } from "./sql-schema.js";
 import { env } from "../env.mjs";
 import { desc, isNull, eq, inArray, and } from "drizzle-orm";
 import * as neo4j from "neo4j-driver";
@@ -29,6 +29,7 @@ import {
   type InType_getTaskTree,
   type OutType_getTaskTree,
   type StageData,
+  TrainingDataExample,
 } from "../zod-schema/index.js";
 import {
   type TasksStepsData,
@@ -365,9 +366,6 @@ export const getTaskStageNData = async (
  * null and undefined fields are IGNORED -- if you want to clear a field, use {} or "".
  * setting a json field to {}, or a string field to "", sets the respective column to null or "".
  *
- * // TODO Move the dashboard validation function to db-helpers or sth, and use it in the task runner too.
- * // TODO Move the above message, "setting a json field...", to the helper function.
- *
  *
  */
 
@@ -557,6 +555,7 @@ export const createChildTask = async (
       ...(input.initialContextSummary
         ? { initialContextSummary: input.initialContextSummary }
         : {}),
+      ...(input.memoryBankID ? { memoryBankID: input.memoryBankID } : {}),
     })
   ).insertId;
 
@@ -1466,5 +1465,39 @@ export const restartTaskTree = async (
     } else {
       console.error(error);
     }
+  }
+};
+
+/**
+ *
+ *
+ * Save a training data example.
+ *
+ *
+ */
+
+export const saveTrainingData = async (
+  example: TrainingDataExample
+): Promise<void> => {
+  try {
+    // delete existing example with exact same output
+    const existingExample = await sqlClient
+      .select({ id: trainingData.id })
+      .from(trainingData)
+      .where(eq(trainingData.outputString, example.output));
+    if (existingExample) {
+      await sqlClient
+        .delete(trainingData)
+        .where(eq(trainingData.id, existingExample[0].id));
+    }
+    // save new example
+    await sqlClient.insert(trainingData).values({
+      inputChatMlMessages: example.input,
+      outputString: example.output,
+      qualityRating: example.qualityRating,
+    });
+  } catch (error) {
+    console.error("FAILED to save training data example: ", example);
+    console.error(error);
   }
 };

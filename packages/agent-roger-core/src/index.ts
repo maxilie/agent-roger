@@ -23,14 +23,15 @@ import {
   unpauseTask,
   unpauseTaskTree,
   restartTaskTree,
+  saveTrainingData,
 } from "./db";
 import { AI_MODELS, AiModel, MAX_UNSYNC_TIME } from "./constants";
 import {
   type StageFunction,
   type StageFunctionHelpers,
-  STAGE_PRESETS,
+  REGISTERED_STAGE_FNS,
+  TASK_PRESETS,
 } from "./stage";
-import { TASK_PRESETS } from "./task";
 import {
   Neo4JTask,
   ResultData,
@@ -64,6 +65,7 @@ import {
   OutSchema_getTaskBasicDatas,
   runtimeErrorsSchema,
   RuntimeErrors,
+  TrainingDataExample,
 } from "./zod-schema";
 import {
   Json,
@@ -71,10 +73,7 @@ import {
   jsonObjSchema,
   jsonSchema,
 } from "./zod-schema/stage-base/json.js";
-import {
-  TaskDefinition,
-  taskDefinitionSchema,
-} from "./zod-schema/stage-base/task-definition.js";
+import { TaskDefinition, taskDefinitionSchema } from "./zod-schema/stage-base";
 
 export interface DB {
   tasks: typeof tasks;
@@ -98,6 +97,7 @@ export interface DB {
   unpauseTask: typeof unpauseTask;
   unpauseTaskTree: typeof unpauseTaskTree;
   restartTaskTree: typeof restartTaskTree;
+  saveTrainingData: typeof saveTrainingData;
 }
 
 const db: DB = {
@@ -122,6 +122,7 @@ const db: DB = {
   unpauseTask: unpauseTask,
   unpauseTaskTree: unpauseTaskTree,
   restartTaskTree: restartTaskTree,
+  saveTrainingData: saveTrainingData,
 };
 
 export interface Schema {
@@ -210,7 +211,7 @@ type StagePresets = { preset: { [key: string]: StageFunction } };
 type TaskPresets = { preset: { [key: string]: TaskDefinition } };
 
 const stage: StagePresets = {
-  preset: STAGE_PRESETS,
+  preset: REGISTERED_STAGE_FNS,
 };
 
 const task: TaskPresets = {
@@ -243,3 +244,7 @@ export {
   AI_MODELS,
   AiModel,
 };
+
+export * from "./model-input";
+
+export { TrainingDataExample };

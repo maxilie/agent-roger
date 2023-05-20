@@ -7,7 +7,16 @@
  */
 
 import { z } from "zod";
-import { taskDefinitionSchema } from "./task-definition";
+
+// task definition
+export type TaskDefinition = {
+  isAbstract: boolean;
+  stagePresets: string[];
+};
+export const taskDefinitionSchema = z.object({
+  isAbstract: z.boolean().default(false),
+  stagePresets: z.array(z.string()).min(1).max(24),
+});
 
 // schema for generateSubTasks stage
 export const subTasksSpawnedSchema = z
@@ -26,3 +35,10 @@ export const taskStepsDataSchema = z.object({
   stepIdxToDependentStepIdx: z.record(z.number()).default({}),
 });
 export type TasksStepsData = z.infer<typeof taskStepsDataSchema>;
+
+export type VectorDbDocument = {
+  uuid: string;
+  content: string;
+  location: string;
+  timeString?: string;
+};
