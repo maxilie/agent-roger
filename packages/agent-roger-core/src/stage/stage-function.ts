@@ -24,6 +24,7 @@ export type SubTaskFn = (
 export type PauseTaskFn = () => void;
 export type EndStageFn = (err?: string | object) => void;
 export type TaskResultFn = (result: ResultData) => void;
+export type ExecCmdFn = (cmd: string) => Promise<string>;
 export type StageFunctionHelpers = {
   initialInputFields: JsonObj;
   initialContextFields: JsonObj;
@@ -42,5 +43,6 @@ export type StageFunctionHelpers = {
   pauseTask: PauseTaskFn;
   endStage: EndStageFn;
   taskResult: TaskResultFn;
+  execCmd: ExecCmdFn;
 };
 export type StageFunction = (helpers: StageFunctionHelpers) => Promise<void>;

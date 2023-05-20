@@ -17,6 +17,7 @@ import {
   type TrainingDataExample,
 } from "agent-roger-core";
 import * as crypto from "crypto";
+const { exec } = await import("child_process");
 import { type WeaviateClient } from "weaviate-ts-client";
 import type * as neo4j from "neo4j-driver";
 import { stage, type StageFunctionHelpers } from "agent-roger-core";
@@ -228,6 +229,7 @@ class RunningTask {
             endStage: (err?: string | object) => this.endStageHelper(err),
             taskResult: (resultData: ResultData) =>
               this.taskResultHelper(resultData),
+            execCmd: (cmd: string) => this.executeCmdHelper(cmd),
           };
           // run stage function
           await stageFunction(helpers);
@@ -708,6 +710,45 @@ class RunningTask {
         })
         .do();
     } catch (_) {}
+  }
+
+  /**
+   * @param {string} command A shell command to execute
+   * @return {Promise<string>} A promise that resolve to the output of the shell command, or an error
+   */
+  async executeCmdHelper(command: string): Promise<string> {
+    /**
+     * @param {Function} resolve A function that resolves the promise
+     * @param {Function} reject A function that fails the promise
+     * @see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise
+     */
+    return new Promise(function (resolve, reject) {
+      /**
+       * @param {Error} error An error triggered during the execution of the childProcess.exec command
+       * @param {string|Buffer} standardOutput The result of the shell command execution
+       * @param {string|Buffer} standardError The error resulting of the shell command execution
+       * @see https://nodejs.org/api/child_process.html#child_process_child_process_exec_command_options_callback
+       */ exec(command, function (error, standardOutput, standardError) {
+        // handle errors
+        if (error) {
+          reject(
+            new Error(
+              "Error executing shell command: " +
+                error.name +
+                ": " +
+                error.message
+            )
+          );
+          return;
+        }
+        if (standardError) {
+          reject(new Error(standardError.trim()));
+          return;
+        }
+        // return command line output
+        resolve(standardOutput.trim());
+      });
+    });
   }
 
   /**

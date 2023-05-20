@@ -21,16 +21,6 @@ const config = {
 
     return config;
   },
-
-  // eslint: {
-  //   dirs: ["../../", "utils"], // Only run ESLint on the 'pages' and 'utils' directories during production builds (next build)
-  // },
-
-  // transpilePackages: [
-  //   "../task-runner",
-  //   "../agent-roger-core",
-  //   "../../libs/@eslint-config-base",
-  // ],
 };
 
 export default config;
