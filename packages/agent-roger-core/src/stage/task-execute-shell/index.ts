@@ -1,4 +1,3 @@
-import { exec } from "child_process";
 import {
   type StageFunctionHelpers,
   type StageFunction,
@@ -10,7 +9,8 @@ import { getTaskBasicData } from "../../db/db-actions.js";
  * @param {string} command A shell command to execute
  * @return {Promise<string>} A promise that resolve to the output of the shell command, or an error
  */
-const execute = (command: string): Promise<string> => {
+const execute = async (command: string): Promise<string> => {
+  const { exec } = await import("child_process");
   /**
    * @param {Function} resolve A function that resolves the promise
    * @param {Function} reject A function that fails the promise
@@ -22,8 +22,7 @@ const execute = (command: string): Promise<string> => {
      * @param {string|Buffer} standardOutput The result of the shell command execution
      * @param {string|Buffer} standardError The error resulting of the shell command execution
      * @see https://nodejs.org/api/child_process.html#child_process_child_process_exec_command_options_callback
-     */
-    exec(command, function (error, standardOutput, standardError) {
+     */ exec(command, function (error, standardOutput, standardError) {
       // handle errors
       if (error) {
         reject(

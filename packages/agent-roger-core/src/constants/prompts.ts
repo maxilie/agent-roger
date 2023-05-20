@@ -188,7 +188,7 @@ export const SUGGESTED_APPROACHES: { [key: string]: SuggestedApproaches[] } = {
           },
         },
       },
-      // generate content
+      // generate content task
       {
         scenario:
           "User wants to generate text, answer a question, write code, edit JSON, make a determination based on some input, etc.",
@@ -232,7 +232,7 @@ export const SUGGESTED_APPROACHES: { [key: string]: SuggestedApproaches[] } = {
           },
         },
       },
-      // switch memory bank
+      // switch memory bank task
       {
         scenario:
           "The user wants to create a new memory bank, stop using the current memory bank, or switch to a different memory bank.",
