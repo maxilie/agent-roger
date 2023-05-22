@@ -54,7 +54,8 @@ const TASK_PRESETS: { [key: string]: TaskDefinition } = {
     isAbstract: false,
     stagePresets: [
       // see: /src/stage/task-reduce-json/index.ts
-      "generateSemanticContextQueries",
+      "getJsonToReduce",
+      "splitJsonToReduce",
     ],
   },
   executeShell: {
@@ -72,14 +73,22 @@ const TASK_PRESETS: { [key: string]: TaskDefinition } = {
     isAbstract: false,
     stagePresets: [
       // see: /src/stage/task-index-file/index.ts
-      "generateSemanticContextQueries",
+      "clearFileFromMemoryBank",
+      "getFileLines",
+      "splitFileLinesIntoChunks",
+      "summarizeChunksOfIndividualLines",
+      "embedChunks",
+      "embedChunkFileSegments",
+      "generateBroadFileSegments",
+      "embedBroadFileSegments",
+      "saveNewDocuments",
     ],
   },
   modifyFile: {
     isAbstract: false,
     stagePresets: [
       // see: /src/stage/task-modify-file/index.ts
-      "generateSemanticContextQueries",
+      "deleteFileIfRequested",
     ],
   },
   switchMemoryBank: {

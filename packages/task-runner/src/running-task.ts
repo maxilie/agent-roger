@@ -760,7 +760,7 @@ class RunningTask {
       // check if the file exists
       await fs.access(fileName);
 
-      // If it does, read its contents and return
+      // if file exists, return its contents
       const data = await fs.readFile(fileName, "utf8");
       return data;
     } catch (error) {

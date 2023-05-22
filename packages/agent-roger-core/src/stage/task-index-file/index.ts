@@ -114,7 +114,6 @@ export const INDEX_FILE_STAGE_FNS: { [key: string]: StageFunction } = {
         }
       }
     }
-
     helpers.endStage();
   },
   getFileLines: async (helpers: StageFunctionHelpers) => {
