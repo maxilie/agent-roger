@@ -33,11 +33,7 @@ const TASK_PRESETS: { [key: string]: TaskDefinition } = {
     isAbstract: true,
     stagePresets: [
       // see: /src/stage/task-abstract/index.ts
-      "generateSemanticContextQueries",
-      "generateKeywordContextQueries",
-      "generateSemanticQueryEmbeddings",
-      "queryRawContext",
-      "summarizeContext",
+      "observeTaskHistory",
       "generateStepsAndSuccessCriteria",
       "expandStepInstructions",
       "generateSubTasks",

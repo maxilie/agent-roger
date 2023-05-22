@@ -16,6 +16,8 @@ import {
   assembleTextLlmInput,
   type TrainingDataExample,
 } from "agent-roger-core";
+import fs from "fs/promises";
+import path from "path";
 import * as crypto from "crypto";
 const { exec } = await import("child_process");
 import { type WeaviateClient } from "weaviate-ts-client";
@@ -230,6 +232,8 @@ class RunningTask {
             taskResult: (resultData: ResultData) =>
               this.taskResultHelper(resultData),
             execCmd: (cmd: string) => this.executeCmdHelper(cmd),
+            readOrCreateFile: (fileName: string) =>
+              this.readOrCreateFileHelper(fileName),
           };
           // run stage function
           await stageFunction(helpers);
@@ -749,6 +753,28 @@ class RunningTask {
         resolve(standardOutput.trim());
       });
     });
+  }
+
+  async readOrCreateFileHelper(fileName: string): Promise<string> {
+    try {
+      // check if the file exists
+      await fs.access(fileName);
+
+      // If it does, read its contents and return
+      const data = await fs.readFile(fileName, "utf8");
+      return data;
+    } catch (error) {
+      // if the error is because the file does not exist, create it
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError.code === "ENOENT") {
+        await fs.mkdir(path.dirname(fileName), { recursive: true });
+        await fs.writeFile(fileName, "", "utf8");
+        return "";
+      }
+
+      // if the error is for another reason, throw it
+      throw error;
+    }
   }
 
   /**

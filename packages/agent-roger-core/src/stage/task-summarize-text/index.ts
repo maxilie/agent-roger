@@ -5,6 +5,7 @@ import {
 import { TASK_PRESETS } from "../presets.js";
 import { getTaskBasicData } from "../../db/db-actions.js";
 import { assembleTextLlmInput } from "../../model-input/index.js";
+import { type Json } from "../../zod-schema/stage-base/json.js";
 
 const maxLlmWords = 1300;
 const numChunks = 4;
@@ -13,30 +14,36 @@ export const SUMMARIZE_TEXT_STAGE_FNS: { [key: string]: StageFunction } = {
   // eslint-disable-next-line @typescript-eslint/require-await
   getSummarizationInput: async (helpers: StageFunctionHelpers) => {
     // find textToSummarize, maxWords, and guidelines
+    let textToSummarize = "";
+    let maxWords = 0;
+    let guidelines: Json = [];
     for (const inputFieldName of Object.keys(helpers.initialInputFields)) {
       const fieldNameLower = inputFieldName.toLowerCase();
       if (fieldNameLower.includes("text")) {
-        helpers.set(
-          "textToSummarize",
-          helpers.initialInputFields[inputFieldName] as string
-        );
+        textToSummarize = helpers.initialInputFields[inputFieldName] as string;
       } else if (fieldNameLower.includes("max")) {
-        helpers.set(
-          "maxWords",
-          Math.min(
-            maxLlmWords / 7,
-            helpers.initialInputFields[inputFieldName] as number
-          )
+        maxWords = Math.min(
+          maxLlmWords / 7,
+          helpers.initialInputFields[inputFieldName] as number
         );
       } else if (fieldNameLower.includes("guide")) {
-        helpers.set("guidelines", helpers.initialInputFields[inputFieldName]);
+        guidelines = helpers.initialInputFields[inputFieldName];
       }
     }
+    if (!maxWords) maxWords = maxLlmWords / 7;
+    if (!guidelines) guidelines = [];
     // pause task if no text to summarize was found
-    helpers.endStage(`Failed to get the input fields required by summarizeText task (textToSummarize, maxWords, guidelines). \
+    if (!textToSummarize) {
+      helpers.endStage(`Failed to get the input fields required by summarizeText task (textToSummarize, maxWords, guidelines). \
     Looked for a field containing "text" within the following input fields but did not find it: ${Object.keys(
       helpers.initialInputFields
     ).join(", ")}`);
+      return;
+    }
+    helpers.set("textToSummarize", textToSummarize);
+    helpers.set("maxWords", maxWords);
+    helpers.set("guidelines", guidelines);
+    helpers.endStage();
   },
   splitTextToSummarize: async (helpers: StageFunctionHelpers) => {
     const textToSummarize = (await helpers.get("textToSummarize")) as string;
@@ -109,14 +116,14 @@ export const SUMMARIZE_TEXT_STAGE_FNS: { [key: string]: StageFunction } = {
         summarizedChunks.push(textChunks[i]);
       }
     }
-    // summarize the small text chunks
+    // summarize the small text chunks together
     const textBefore = (helpers.initialContextFields?.textBefore ??
       "") as string;
     const textAfter = (helpers.initialContextFields?.textAfter ?? "") as string;
-    const summary = await helpers.textLLM(
+    const textSummary = await helpers.textLLM(
       assembleTextLlmInput({
         prompt: {
-          instructions: `Summarize the 'textToSummarize' field using no more than . ${maxWords} words. If the 'guidelines' field is not \
+          instructions: `Summarize the 'textToSummarize' field using no more than ${maxWords} words. If the 'guidelines' field is not \
         empty, then make sure that the summary conforms to the guidelines. Ensure that the summary makes sense given the text before \
         and after it (the 'textBefore' and 'textAfter' fields).`,
           textToSummarize: summarizedChunks.join(" "),
@@ -139,7 +146,7 @@ export const SUMMARIZE_TEXT_STAGE_FNS: { [key: string]: StageFunction } = {
     helpers.taskResult({
       failed: false,
       taskSummary: "",
-      outputFields: { textSummary: summary },
+      outputFields: { ...textSummary },
     });
   },
 };

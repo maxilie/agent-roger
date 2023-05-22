@@ -44,5 +44,6 @@ export type StageFunctionHelpers = {
   endStage: EndStageFn;
   taskResult: TaskResultFn;
   execCmd: ExecCmdFn;
+  readOrCreateFile: (fileName: string) => Promise<string>;
 };
 export type StageFunction = (helpers: StageFunctionHelpers) => Promise<void>;

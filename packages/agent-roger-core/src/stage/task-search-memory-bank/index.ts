@@ -84,6 +84,7 @@ export const SEARCH_MEMORY_BANK_STAGE_FNS: { [key: string]: StageFunction } = {
       }),
     });
     helpers.set("queryEmbeddings", queryEmbeddings);
+    helpers.endStage();
   },
   getUniqueDocuments: async (helpers: StageFunctionHelpers) => {
     const queryVariations = (await helpers.get("queryVariations")) as string[];
