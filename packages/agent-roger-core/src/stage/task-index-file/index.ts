@@ -116,14 +116,14 @@ export const INDEX_FILE_STAGE_FNS: { [key: string]: StageFunction } = {
     }
     helpers.endStage();
   },
-  getFileLines: async (helpers: StageFunctionHelpers) => {
+  getFileLinesToIndex: async (helpers: StageFunctionHelpers) => {
     // read file
     const fileName = (await helpers.get("fileName")) as string;
     const fileContents = await helpers.readOrCreateFile(fileName);
     const fileLines: string[] = [];
     const untrimmedFileLines = fileContents.split("\n");
     for (const line of untrimmedFileLines) {
-      // if empty line, combine it to the previous line
+      // if empty line, combine it with the previous line
       if (!line.trim()) {
         if (fileLines.length) {
           fileLines[-1] = fileLines[-1] + "\n";
@@ -163,8 +163,9 @@ export const INDEX_FILE_STAGE_FNS: { [key: string]: StageFunction } = {
       });
       return;
     }
+    helpers.endStage();
   },
-  splitFileLinesIntoChunks: async (helpers: StageFunctionHelpers) => {
+  splitFileToIndexLinesIntoChunks: async (helpers: StageFunctionHelpers) => {
     // group lines into chunks
     const fileLines = (await helpers.get("fileLines")) as string[];
     const chunksOfIndividualLines: string[][] = [];
@@ -245,7 +246,7 @@ export const INDEX_FILE_STAGE_FNS: { [key: string]: StageFunction } = {
       if (!subTaskData?.success) return;
       if (!subTaskData?.resultData?.outputFields) {
         helpers.endStage(
-          `Expected sub-task #${subTaskID} to generate query variations, but it did not produce any outputFields.`
+          `Expected sub-task #${subTaskID} to generate a summary of a chunk of file lines, but it did not produce any outputFields.`
         );
         return;
       }

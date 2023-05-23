@@ -74,8 +74,8 @@ const TASK_PRESETS: { [key: string]: TaskDefinition } = {
     stagePresets: [
       // see: /src/stage/task-index-file/index.ts
       "clearFileFromMemoryBank",
-      "getFileLines",
-      "splitFileLinesIntoChunks",
+      "getFileLinesToIndex",
+      "splitFileToIndexLinesIntoChunks",
       "summarizeChunksOfIndividualLines",
       "embedChunks",
       "embedChunkFileSegments",
@@ -89,6 +89,10 @@ const TASK_PRESETS: { [key: string]: TaskDefinition } = {
     stagePresets: [
       // see: /src/stage/task-modify-file/index.ts
       "deleteFileIfRequested",
+      "readLinesOfFileToModify",
+      "extractOrCreateOldChunks",
+      "modifyOldFileSegments",
+      "writeAndReindexFile",
     ],
   },
   switchMemoryBank: {

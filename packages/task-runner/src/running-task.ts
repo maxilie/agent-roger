@@ -234,6 +234,8 @@ class RunningTask {
             execCmd: (cmd: string) => this.executeCmdHelper(cmd),
             readOrCreateFile: (fileName: string) =>
               this.readOrCreateFileHelper(fileName),
+            writeToFile: (fileName: string, content: string) =>
+              this.writeFileHelper(fileName, content),
           };
           // run stage function
           await stageFunction(helpers);
@@ -773,6 +775,15 @@ class RunningTask {
       }
 
       // if the error is for another reason, throw it
+      throw error;
+    }
+  }
+
+  async writeFileHelper(fileName: string, fileContents: string): Promise<true> {
+    try {
+      await fs.writeFile(fileName, fileContents, "utf8");
+      return true;
+    } catch (error) {
       throw error;
     }
   }
