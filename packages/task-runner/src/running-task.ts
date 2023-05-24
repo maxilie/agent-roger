@@ -33,6 +33,7 @@ import {
   type CreateEmbeddingRequest,
   type CreateEmbeddingResponseDataInner,
 } from "openai";
+import { eq } from "drizzle-orm";
 
 // instead of saving every action to SQL, run for up to 10 seconds
 // ...and then save results to SQL if the task wasn't updated (by the dashboard user) in the meantime
@@ -84,6 +85,7 @@ class RunningTask {
   timeStageWasCalled: { [stageIdx: number]: number };
   memoryBankID: "global" | string | null;
   unsavedTrainingData: TrainingDataExample[];
+  wasRestartedWhileRunning: boolean;
 
   constructor(
     taskID: number,
@@ -111,6 +113,7 @@ class RunningTask {
     this.timeStageWasCalled = {};
     this.memoryBankID = null;
     this.unsavedTrainingData = [];
+    this.wasRestartedWhileRunning = false;
   }
 
   async runNextStages() {
@@ -231,6 +234,11 @@ class RunningTask {
             endStage: (err?: string | object) => this.endStageHelper(err),
             taskResult: (resultData: ResultData) =>
               this.taskResultHelper(resultData),
+            restartTaskWhileRunning: (newInput: {
+              initialInputFields: JsonObj;
+              initialContextFields?: JsonObj | null;
+              initialContextSummary?: string | null;
+            }) => this.restartTaskWhileRunningHelper(newInput),
             execCmd: (cmd: string) => this.executeCmdHelper(cmd),
             readOrCreateFile: (fileName: string) =>
               this.readOrCreateFileHelper(fileName),
@@ -260,7 +268,7 @@ class RunningTask {
       await this.saveOrCleanup();
 
       // move task back to the waiting queue when the next pipeline runs
-      if (!this.isTaskFinished()) {
+      if (!this.isTaskFinished() || this.wasRestartedWhileRunning) {
         this.redis.markTaskWaitingAgain(this.taskID);
       } else {
         this.redis.markTaskFinished(this.taskID);
@@ -277,11 +285,12 @@ class RunningTask {
   }
 
   /**
-   * @returns true if task was paused, last stage was ended, or resultData was set
+   * @returns true if task was paused, task was restarted, last stage was ended, or resultData was set
    */
   isTaskFinished() {
     if (!this.taskBasicData) return false;
     return (
+      this.wasRestartedWhileRunning ||
       this.unsavedResultData != null ||
       this.wasPaused ||
       (this.localStageIdx ==
@@ -789,6 +798,58 @@ class RunningTask {
   }
 
   /**
+   * Presses "undo" on the task, by marking its sub-tasks as dead and deleting all stage data, and restarts it with new inputs.
+   */
+  async restartTaskWhileRunningHelper(newInput: {
+    initialInputFields: JsonObj;
+    initialContextFields?: JsonObj | null;
+    initialContextSummary?: string | null;
+  }): Promise<void> {
+    this.wasRestartedWhileRunning = true;
+    // kill descendent tasks
+    await db.killDescendents({ taskID: this.taskID }, this.neo4jDriver);
+    // update stage data
+    await db.sqlClient
+      .update(db.tasks)
+      .set({
+        paused: false,
+        success: null,
+        dead: false,
+        lastEndedStage: -1,
+        lastInteractionMarker: crypto.webcrypto.randomUUID(),
+        initialInputFields: newInput.initialInputFields,
+        initialContextFields: newInput.initialContextFields,
+        initialContextSummary: newInput.initialContextSummary,
+        resultData: null,
+        stage0Data: null,
+        stage1Data: null,
+        stage2Data: null,
+        stage3Data: null,
+        stage4Data: null,
+        stage5Data: null,
+        stage6Data: null,
+        stage7Data: null,
+        stage8Data: null,
+        stage9Data: null,
+        stage10Data: null,
+        stage11Data: null,
+        stage12Data: null,
+        stage13Data: null,
+        stage14Data: null,
+        stage15Data: null,
+        stage16Data: null,
+        stage17Data: null,
+        stage18Data: null,
+        stage19Data: null,
+        stage20Data: null,
+        stage21Data: null,
+        stage22Data: null,
+        stage23Data: null,
+      })
+      .where(eq(db.tasks.taskID, this.taskID));
+  }
+
+  /**
    * Checks if any stage or task data was changed, and saves the changes to SQL.
    *
    * If more than `MAX_UNSYNC_TIME` seconds elapsed since beginning task execution,
@@ -796,6 +857,7 @@ class RunningTask {
    * is called to delete any newly created sub-tasks.
    */
   async saveOrCleanup() {
+    if (this.wasRestartedWhileRunning) return;
     try {
       // don't save if nothing changed
       if (

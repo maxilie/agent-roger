@@ -7,6 +7,7 @@
  */
 
 import { z } from "zod";
+import { jsonObjSchema } from "./json";
 
 // task definition
 export type TaskDefinition = {
@@ -30,9 +31,21 @@ export const subTasksSpawnedSchema = z
 export type SubTasksSpawned = z.infer<typeof subTasksSpawnedSchema>;
 export const taskStepsDataSchema = z.object({
   stepIdxToDescription: z.record(z.string()).default({}),
-  stepIdxToTaskDefinition: z.record(taskDefinitionSchema).default({}),
+  stepIdxToDependencyStepIdx: z.record(z.number()).default({}),
+  stepIdxToTaskDefinition: z
+    .record(
+      z.object({
+        newTaskDefinition: taskDefinitionSchema,
+        initialInputFields: jsonObjSchema,
+        initialContextFields: jsonObjSchema.nullish(),
+        initialContextSummary: z.string().nullish(),
+        memoryBankID: z.string().nullish(),
+      })
+    )
+    .default({}),
   stepIdxToSubTaskID: z.record(z.number()).default({}),
-  stepIdxToDependentStepIdx: z.record(z.number()).default({}),
+  stepIdxToSubTaskOutput: z.record(jsonObjSchema).default({}),
+  stepIdxToOutputSummary: z.record(z.string()).default({}),
 });
 export type TasksStepsData = z.infer<typeof taskStepsDataSchema>;
 

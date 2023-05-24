@@ -29,7 +29,7 @@ import {
   type InType_getTaskTree,
   type OutType_getTaskTree,
   type StageData,
-  TrainingDataExample,
+  type TrainingDataExample,
 } from "../zod-schema/index.js";
 import {
   type TasksStepsData,
@@ -934,7 +934,7 @@ export const pauseTaskTree = async (
 /**
  *
  *
- * Pause task with `taskID`, and all its descendant tasks.
+ * Unpause task with `taskID`, and all its descendant tasks.
  *
  *
  */
@@ -978,6 +978,71 @@ export const unpauseTaskTree = async (
     // handle errors
   } catch (error) {
     console.error("FAILED to unpause task tree rooted at task: ", input.taskID);
+    console.error(error);
+  }
+};
+
+/**
+ *
+ *
+ * Mark all of a task's descendant tasks as dead.
+ *
+ *
+ */
+
+export const killDescendents = async (
+  input: InType_deleteTaskTree,
+  neo4jDriver: neo4j.Driver
+): Promise<void> => {
+  if (!!!input.taskID) {
+    return;
+  }
+  const taskIDsToKill = new Set<number>();
+  try {
+    const neo4jSession = neo4jDriver.session();
+
+    // get descendent nodes from neo4j
+    const result = await neo4jSession.run(
+      "MATCH (root_task:Task {taskID: $idParam}) \
+          CALL apoc.path.subgraphAll(root_task, {relationshipFilter: 'SPAWNED>', maxLevel: -1}) YIELD nodes, relationships \
+          UNWIND relationships AS relation \
+          RETURN startNode(relation) AS source, endNode(relation) AS target; ",
+      {
+        idParam: input.taskID,
+      }
+    );
+
+    // process nodes from neo4j
+    result.records.forEach((record) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      taskIDsToKill.add(record.get("source").properties.taskID.toInt());
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      taskIDsToKill.add(record.get("target").properties.taskID.toInt());
+    });
+    taskIDsToKill.delete(input.taskID);
+
+    // kill tasks in neo4j
+    await neo4jSession.run(
+      "UNWIND $taskIDsParam AS taskID \
+        MATCH (task:Task {taskID: taskID}) \
+        SET task.isDead = 'true'",
+      {
+        taskIDsParam: Array.from(taskIDsToKill),
+      }
+    );
+
+    // kill tasks in SQL
+    await sqlClient
+      .update(tasks)
+      .set({ dead: true })
+      .where(inArray(tasks.taskID, Array.from(taskIDsToKill)));
+
+    // handle errors
+  } catch (error) {
+    console.error(
+      "FAILED to kill descendent tasks of task with id: ",
+      input.taskID
+    );
     console.error(error);
   }
 };
@@ -1150,39 +1215,53 @@ export const restartTaskTree = async (
 
       // get those sub-tasks which ultimately depend on taskToRestart...
       // find stepIdx of the dependency (the last visited child task, dependencyTaskID)
-      let dependencyStepIdxStr: string | undefined = Object.keys(
+      const firstDependencyStepIdxStr: string | undefined = Object.keys(
         tasksStepsData.stepIdxToSubTaskID
       ).find(
         (stepIdxStr) =>
           tasksStepsData.stepIdxToSubTaskID[stepIdxStr] == dependencyTaskID
       );
-      if (!dependencyStepIdxStr) {
+      if (!firstDependencyStepIdxStr) {
         throw new Error(
           `STAGE DATA IS LIKELY MISCONFIGURED: Could not find a "step" in the parent's stage data corresponding to the sub-task (#${dependencyTaskID}) in parent task #${String(
             nextAncestor.taskID
-          )}. stepIdxToSubTaskID field: ${JSON.stringify(
+          )}'s stepIdxToSubTaskID field: ${JSON.stringify(
             tasksStepsData.stepIdxToSubTaskID
           )}`
         );
       }
-      // find stepIdx for next dependent step (the step that depends on the previous dependency)
-      let dependentStepIdx: number | undefined =
-        tasksStepsData.stepIdxToDependentStepIdx[dependencyStepIdxStr];
-      while (dependentStepIdx) {
-        // mark the sub-task for the dependent step as a root of a tree which we will kill
-        const dependentTaskID =
-          tasksStepsData.stepIdxToSubTaskID[String(dependentStepIdx)];
-        dependentTreeRootIDs.add(dependentTaskID);
-        // remove the sub-task record for the dependent step
-        delete tasksStepsData.stepIdxToSubTaskID[String(dependentStepIdx)];
-        if (!dependentTaskID) {
-          // chain of dependent steps ends if the next dependent step hasn't yet generated a sub-task
-          break;
+      // work backward to find all steps that depend on the previous dependencies, and mark their tasks as roots of trees to kill
+      let dependencyStepIndices: number[] = [Number(firstDependencyStepIdxStr)];
+      while (dependencyStepIndices.length) {
+        // get dependents from dependencies
+        const dependentStepIndices: number[] = [];
+        for (const dependentIdxStr of Object.keys(
+          tasksStepsData.stepIdxToDependencyStepIdx
+        )) {
+          if (
+            tasksStepsData.stepIdxToDependencyStepIdx[dependentIdxStr] in
+            dependencyStepIndices
+          ) {
+            dependentStepIndices.push(Number(dependentIdxStr));
+          }
         }
-        // get next dependent step
-        dependencyStepIdxStr = String(dependentStepIdx);
-        dependentStepIdx =
-          tasksStepsData.stepIdxToDependentStepIdx[dependencyStepIdxStr];
+        // delete data for dependent steps
+        for (const dependentStepIdx of dependentStepIndices) {
+          // mark the sub-task for the dependent step as a root of a tree which we will kill
+          const dependentTaskID =
+            tasksStepsData.stepIdxToSubTaskID[String(dependentStepIdx)];
+          if (dependentTaskID) {
+            dependentTreeRootIDs.add(dependentTaskID);
+            delete tasksStepsData.stepIdxToSubTaskID[String(dependentStepIdx)];
+            delete tasksStepsData.stepIdxToSubTaskOutput[
+              String(dependentStepIdx)
+            ];
+            delete tasksStepsData.stepIdxToOutputSummary[
+              String(dependentStepIdx)
+            ];
+          }
+        }
+        dependencyStepIndices = dependentStepIndices;
       }
 
       // create rolled back stage data

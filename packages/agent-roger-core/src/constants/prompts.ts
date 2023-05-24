@@ -69,6 +69,7 @@ export const SUGGESTED_APPROACHES: { [key: string]: SuggestedApproaches[] } = {
       // TODO index file(s): create a sub-task TaskDefinition (preset: )
       // TOOD index folder:
     ],
+  expandStepInstructions: [],
   generateSubTasks:
     // scenarios describing when and how to use each task preset
     [
@@ -144,7 +145,7 @@ export const SUGGESTED_APPROACHES: { [key: string]: SuggestedApproaches[] } = {
       // summarize text task
       {
         scenario:
-          "The user is trying to shorten or a long string or summarize some large data to create a string.",
+          "The user is trying to shorten a long string or summarize some large data to create a string.",
         approach:
           "Use the 'summarizeText' task preset, which requires a single input field, 'textToSummarize', containing the string \
           to summarize.",

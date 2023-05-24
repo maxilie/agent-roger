@@ -24,6 +24,11 @@ export type SubTaskFn = (
 export type PauseTaskFn = () => void;
 export type EndStageFn = (err?: string | object) => void;
 export type TaskResultFn = (result: ResultData) => void;
+export type RestartTaskWhileRunningFn = (newInput: {
+  initialInputFields: JsonObj;
+  initialContextFields?: JsonObj | null;
+  initialContextSummary?: string | null;
+}) => Promise<void>;
 export type ExecCmdFn = (cmd: string) => Promise<string>;
 export type StageFunctionHelpers = {
   initialInputFields: JsonObj;
@@ -43,6 +48,7 @@ export type StageFunctionHelpers = {
   pauseTask: PauseTaskFn;
   endStage: EndStageFn;
   taskResult: TaskResultFn;
+  restartTaskWhileRunning: RestartTaskWhileRunningFn;
   execCmd: ExecCmdFn;
   readOrCreateFile: (fileName: string) => Promise<string>;
   writeToFile: (fileName: string, content: string) => Promise<true>;

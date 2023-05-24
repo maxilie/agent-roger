@@ -9,7 +9,6 @@ import {
   getTaskTreeIDs,
   saveTaskData,
   tasks,
-  connection,
   RedisManager,
   REDIS_TASK_QUEUE,
   withNeo4jDriver,
@@ -22,8 +21,11 @@ import {
   pauseTaskTree,
   unpauseTask,
   unpauseTaskTree,
+  killDescendents,
   restartTaskTree,
   saveTrainingData,
+  trainingData,
+  sqlClient,
 } from "./db";
 import { AI_MODELS, AiModel, MAX_UNSYNC_TIME } from "./constants";
 import {
@@ -77,7 +79,8 @@ import { TaskDefinition, taskDefinitionSchema } from "./zod-schema/stage-base";
 
 export interface DB {
   tasks: typeof tasks;
-  conn: typeof connection;
+  trainingData: typeof trainingData;
+  sqlClient: typeof sqlClient;
   withNeo4jDriver: typeof withNeo4jDriver;
   withRedis: typeof withRedis;
   getRootTaskIDs: typeof getRootTaskIDs;
@@ -96,13 +99,15 @@ export interface DB {
   pauseTaskTree: typeof pauseTaskTree;
   unpauseTask: typeof unpauseTask;
   unpauseTaskTree: typeof unpauseTaskTree;
+  killDescendents: typeof killDescendents;
   restartTaskTree: typeof restartTaskTree;
   saveTrainingData: typeof saveTrainingData;
 }
 
 const db: DB = {
   tasks: tasks,
-  conn: connection,
+  trainingData: trainingData,
+  sqlClient: sqlClient,
   withNeo4jDriver: withNeo4jDriver,
   withRedis: withRedis,
   getRootTaskIDs: getRootTaskIDs,
@@ -121,6 +126,7 @@ const db: DB = {
   pauseTaskTree: pauseTaskTree,
   unpauseTask: unpauseTask,
   unpauseTaskTree: unpauseTaskTree,
+  killDescendents: killDescendents,
   restartTaskTree: restartTaskTree,
   saveTrainingData: saveTrainingData,
 };
