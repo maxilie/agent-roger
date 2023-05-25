@@ -106,6 +106,7 @@ export const getTaskBasicData = async (
       tasks.success.name,
       tasks.dead.name,
       tasks.lastEndedStage.name,
+      tasks.memoryBankID.name,
       tasks.lastInteractionMarker.name,
       tasks.isAbstract.name,
       tasks.parentID.name,
@@ -194,6 +195,11 @@ export const getTaskBasicData = async (
       lastEndedStage: tasks.lastEndedStage.mapFromDriverValue(
         rowObj[tasks.lastEndedStage.name] as number
       ),
+      memoryBankID: rowObj[tasks.memoryBankID.name]
+        ? tasks.memoryBankID.mapFromDriverValue(
+            rowObj[tasks.memoryBankID.name] as string
+          )
+        : null,
       lastInteractionMarker: rowObj[tasks.lastInteractionMarker.name]
         ? tasks.lastInteractionMarker.mapFromDriverValue(
             rowObj[tasks.lastInteractionMarker.name] as string
@@ -251,6 +257,7 @@ export const getTaskBasicDatas = async (
         success: tasks.success,
         dead: tasks.dead,
         lastEndedStage: tasks.lastEndedStage,
+        memoryBankID: tasks.memoryBankID,
         lastInteractionMarker: tasks.lastInteractionMarker,
         isAbstract: tasks.isAbstract,
         parentID: tasks.parentID,
