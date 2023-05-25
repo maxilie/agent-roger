@@ -560,6 +560,9 @@ const CreateNewTask: FC<{
   );
   const [initialContextFieldsStr, setInitialContextFieldsStr] = useState("");
   const [initialContextSummary, setInitialContextSummary] = useState("");
+  const [initialInputFieldsValid, setInitialInputFieldsValid] = useState(true);
+  const [initialContextFieldsValid, setInitialContextFieldsValid] =
+    useState(true);
 
   const handleSubmit = async () => {
     await props.createNewTaskFn({
@@ -582,28 +585,63 @@ const CreateNewTask: FC<{
         <XSquare className="h-7 w-7" />
       </button>
       <h2 className="mb-4 text-lg font-bold text-white">New Root Task</h2>
-      <div className="mb-4">
-        <label className="mb-2 block text-sm text-gray-300">Input Fields</label>
+
+      <div className="mt-8">
+        <div className="mb-3 flex justify-between">
+          <div className="my-auto flex w-7/12 flex-col justify-around">
+            <label className="mb-1 block text-sm text-gray-300">
+              Input Fields
+            </label>
+          </div>
+          {!initialInputFieldsValid && (
+            <div className="my-auto ml-auto mr-2 flex">
+              <AlertCircle className="h-6 w-6 text-red-400" />
+              <p className="text-md ml-2 font-serif font-semibold text-yellow-50">
+                Invalid!
+              </p>
+            </div>
+          )}
+        </div>
         <textarea
-          className="h-44 w-full resize-y rounded bg-gray-700 p-2 text-white"
+          className="h-44 w-full resize-y rounded bg-gray-700 p-2 text-white drop-shadow-lg"
           value={initialInputFieldsStr}
           onChange={(e) => setInitialInputFieldsStr(e.target.value)}
           onBlur={(e) => {
+            console.log("blurring");
             try {
               const valAsObject = schema.jsonObj.parse(
                 JSON.parse(e.target.value)
               );
               setInitialInputFieldsStr(JSON.stringify(valAsObject, null, 2));
-            } catch (ignored) {}
+              setInitialInputFieldsValid(true);
+              console.log("valid");
+            } catch (_) {
+              if (e.target.value.trim().length) {
+                console.log("invalid");
+                setInitialInputFieldsValid(false);
+              }
+            }
           }}
         />
       </div>
-      <div className="mb-4">
-        <label className="mb-2 block text-sm text-gray-300">
-          Context Fields (optional)
-        </label>
+      <div className="mt-8">
+        <div className="mb-3 flex justify-between">
+          <div className="my-auto flex w-7/12 flex-col justify-around">
+            <label className="mb-1 block text-sm text-gray-300">
+              Context Fields (optional)
+            </label>
+          </div>
+          {!initialContextFieldsValid && (
+            <div className="my-auto ml-auto mr-2 flex">
+              <AlertCircle className="h-6 w-6 text-red-400" />
+              <p className="text-md ml-2 font-serif font-semibold text-yellow-50">
+                Invalid!
+              </p>
+            </div>
+          )}
+        </div>
         <textarea
-          className="w-full resize-y rounded bg-gray-700 p-2 text-white"
+          className="h-20 w-full resize-y rounded bg-gray-700 p-2 text-white drop-shadow-lg"
           value={initialContextFieldsStr}
           onChange={(e) => setInitialContextFieldsStr(e.target.value)}
           onBlur={(e) => {
@@ -612,21 +650,30 @@ const CreateNewTask: FC<{
                 JSON.parse(e.target.value)
               );
               setInitialContextFieldsStr(JSON.stringify(valAsObject, null, 2));
-            } catch (ignored) {}
+              setInitialContextFieldsValid(true);
+            } catch (_) {
+              if (e.target.value.trim().length) {
+                setInitialContextFieldsValid(false);
+              }
+            }
           }}
         />
       </div>
-      <div className="mb-4">
-        <label className="mb-2 block text-sm text-gray-300">
-          Context Summary (optional)
-        </label>
+      <div className="mb-8 mt-8">
+        <div className="mb-3 flex justify-between">
+          <div className="my-auto flex w-7/12 flex-col justify-around">
+            <label className="mb-1 block text-sm text-gray-300">
+              Context Summary (optional)
+            </label>
+          </div>
+        </div>
         <textarea
-          className="w-full resize-y rounded bg-gray-700 p-2 text-white"
+          className="h-20 w-full resize-y rounded bg-gray-700 p-2 text-white drop-shadow-lg"
           value={initialContextSummary}
           onChange={(e) => setInitialContextSummary(e.target.value)}
         />
       </div>
-      <div className="flex justify-end">
+      <div className="mb-12 flex justify-end">
         <Button
           variant={"red"}
           onClick={props.cancelFn}

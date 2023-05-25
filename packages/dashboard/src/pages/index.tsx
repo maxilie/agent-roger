@@ -775,7 +775,9 @@ const Dashboard: NextPage = () => {
       initialContextFieldsJSON = schema.jsonObj.parse(
         JSON.parse(params.initialContextFieldsStr)
       );
-    } catch (error) {}
+    } catch (error) {
+      console.error(error);
+    }
     await createRootTask.mutateAsync({
       taskDefinition: task.preset.abstract ?? {},
       initialInputFields: initialInputFieldsJSON,
