@@ -59,6 +59,7 @@ export const tasksRouter = createTRPCRouter({
       await db.withNeo4jDriver(async (neo4jDriver) => {
         await db.withRedis(async (redis) => {
           res = await db.createRootTask(input, neo4jDriver, redis);
+          console.log("response from createRootTask: ", res);
         });
       });
       return res;

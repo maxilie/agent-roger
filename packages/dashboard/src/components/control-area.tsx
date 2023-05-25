@@ -607,17 +607,14 @@ const CreateNewTask: FC<{
           value={initialInputFieldsStr}
           onChange={(e) => setInitialInputFieldsStr(e.target.value)}
           onBlur={(e) => {
-            console.log("blurring");
             try {
               const valAsObject = schema.jsonObj.parse(
                 JSON.parse(e.target.value)
               );
               setInitialInputFieldsStr(JSON.stringify(valAsObject, null, 2));
               setInitialInputFieldsValid(true);
-              console.log("valid");
             } catch (_) {
               if (e.target.value.trim().length) {
-                console.log("invalid");
                 setInitialInputFieldsValid(false);
               }
             }

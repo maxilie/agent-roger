@@ -786,6 +786,7 @@ const Dashboard: NextPage = () => {
         : {}),
       initialContextSummary: params.initialContextSummary,
     });
+    console.log("created root task");
     setSelectedRootTaskID(undefined);
     setSelectedTaskID(undefined);
   };

@@ -474,6 +474,7 @@ export const createRootTask = async (
       "Error creating new root task in SQL with input query: ",
       JSON.stringify(input)
     );
+    console.error(e);
     return null;
   }
 
