@@ -1985,7 +1985,7 @@ __metadata:
   dependencies:
     "@planetscale/database": 1.7.0
     drizzle-orm: 0.25.1
-    gpt-tokenizer: ^1.0.5
+    gpt-tokenizer: ^2.0.0
     graphql: ^16.6.0
     ioredis: ^5.3.2
     neo4j-driver: 5.7.0
@@ -2009,7 +2009,7 @@ __metadata:
     env-cmd: ^10.1.0
     eslint: ^8.39.0
     eslint-config-prettier: 8.8.0
-    gpt-tokenizer: ^1.0.5
+    gpt-tokenizer: ^2.0.0
     graphql: ^16.6.0
     ioredis: ^5.3.2
     neo4j-driver: 5.7.0
@@ -5304,10 +5304,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"gpt-tokenizer@npm:^1.0.5":
-  version: 1.0.5
-  resolution: "gpt-tokenizer@npm:1.0.5"
-  checksum: 1ea266f010c3702779fb042f39c9ff49d86c563a3776fae7d1f31c997e649d42c885d36564bccd3721f54e0991a1c70fc9c2e06c22bd624da09ceea8c9b5a9a1
+"gpt-tokenizer@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "gpt-tokenizer@npm:2.0.0"
+  dependencies:
+    rfc4648: ^1.5.2
+  checksum: 62de9a16111402ba772b67a710ae3807810cd60ebd77de79e199d35596943ca8a676d07edd79bd4a8100320475e32cfd85a81f0032169d46cb23adbe7076222d
   languageName: node
   linkType: hard
 
@@ -7611,6 +7613,13 @@ __metadata:
   version: 1.0.4
   resolution: "reusify@npm:1.0.4"
   checksum: c3076ebcc22a6bc252cb0b9c77561795256c22b757f40c0d8110b1300723f15ec0fc8685e8d4ea6d7666f36c79ccc793b1939c748bf36f18f542744a4e379fcc
+  languageName: node
+  linkType: hard
+
+"rfc4648@npm:^1.5.2":
+  version: 1.5.2
+  resolution: "rfc4648@npm:1.5.2"
+  checksum: bc3d9c4fbfdbbb363c640f9cb56fc01d2e1ca64305b2b6409aaf59cb85c1adecb2545c03deee8889cce2685e15fb7dd47581665c288e4f45068ffece2642f2e8
   languageName: node
   linkType: hard
 
