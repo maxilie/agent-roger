@@ -248,12 +248,25 @@ class RunningTask {
           // run stage function
           await stageFunction(helpers);
         } catch (err) {
-          console.error("ERROR IN STAGE FUNCTION: ");
-          console.error(err);
+          const errStageName =
+            this.taskBasicData.taskDefinition.stagePresets[this.localStageIdx];
+          let errMessage: string;
+          if (err instanceof Error) {
+            errMessage =
+              err.name +
+              ": " +
+              err.message +
+              "\n" +
+              (err.stack?.toString().slice(0, 150) || "");
+          } else {
+            errMessage = err as string;
+          }
+          console.error(
+            `ERROR IN STAGE FUNCTION '${errStageName}':  + ${errMessage}`
+          );
           // mark error and pause task
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
           this.endStageHelper(
-            err ? (err as Error).toString() : "Unknown error"
+            `Error in stage '${errStageName}': ${errMessage}`
           );
           // save data
           await this.saveOrCleanup();
@@ -319,6 +332,8 @@ class RunningTask {
   }
 
   async getHelper<T extends Json | null>(key: string): Promise<T | null> {
+    console.log("");
+    console.log(`getting ${key} in stage ${this.localStageIdx}...`);
     // look for field in current stage
     if (key in this.loadedStageData[this.localStageIdx].fields) {
       const val = this.loadedStageData[this.localStageIdx].fields[key];
@@ -327,6 +342,7 @@ class RunningTask {
           `Expected field ${key} to be ${typeof val}, but it was ${typeof val}`
         );
       } else {
+        console.log(`found it in the same stage: ${String(val).slice(0, 50)}`);
         return val as T;
       }
     }
@@ -356,18 +372,30 @@ class RunningTask {
             `Expected field ${key} to be ${typeof val}, but it was ${typeof val}`
           );
         } else {
+          console.log(
+            `found it in stage ${prevStage}: ${String(val).slice(0, 50)}`
+          );
           return val as T;
         }
       }
       prevStage -= 1;
     }
     // return null if field does not exist
+    console.log("didn't find it in any stage.");
     return null;
   }
 
   setHelper(key: string, val: Json | null) {
     this.loadedStageData[this.localStageIdx].fields[key] = val;
     this.stageDataIndicesAffected.add(this.localStageIdx);
+    console.log("");
+    console.log(
+      `set {${key} in stage idx ${this.localStageIdx}} to ${String(val).slice(
+        0,
+        50
+      )}`
+    );
+    console.log("");
     return "";
   }
 
@@ -898,9 +926,12 @@ class RunningTask {
           : "failed" in this.unsavedResultData && this.unsavedResultData.failed
           ? false
           : true;
-      const lastEndedStage = this.loadedStageData[this.localStageIdx].ended
-        ? this.localStageIdx
-        : this.localStageIdx - 1;
+      let lastEndedStage = -1;
+      for (let i = 0; i <= this.localStageIdx; i++) {
+        if (this.loadedStageData[i] && this.loadedStageData[i].ended) {
+          lastEndedStage = i;
+        }
+      }
       const newTaskData: TaskUpdateData = schema.updateTask.parse({
         memoryBankID: this.memoryBankID,
         paused: this.wasPaused ? true : this.taskBasicData?.paused,

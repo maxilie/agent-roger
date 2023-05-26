@@ -207,9 +207,4 @@ NOTE: We use yarn workspaces to configure the monorepo. You might need a Yarn "E
 
 The dashboard visualizer does not work with Brave browser's shields enabled (specifically, the "block fingerprinting" option disables click functionality for the dashboard's force graph).
 
-If docker fails to build, you may need to disable buildkit by running the following commands in a terminal:
-
-```bash
-export DOCKER_BUILDKIT=0
-export COMPOSE_DOCKER_CLI_BUILD=0
-```
+If docker fails to build, you may need to disable buildkit in your docker engine settings.
