@@ -16,7 +16,7 @@
   "dependencies": {
     "@planetscale/database": "1.7.0",
     "drizzle-orm": "0.25.1",
-    "gpt-tokenizer": "^1.0.5",
+    "gpt-tokenizer": "^2.0.0",
     "graphql": "^16.6.0",
     "ioredis": "^5.3.2",
     "neo4j-driver": "5.7.0",

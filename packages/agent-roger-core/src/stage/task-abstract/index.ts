@@ -35,7 +35,7 @@ export const ABSTRACT_TASK_STAGE_FNS: { [key: string]: StageFunction } = {
     };
     const prompt = {
       instructions: [
-        "Break down the 'task' into at most 4 steps. Output each step as an element of an array called 'steps'.",
+        "Break down the 'task' into at most 4 specific, descriptive steps. Output each step as an element of an array called 'steps'.",
         "Also create a field called 'stepDependencies'. If a step needs a previous step to complete in order to proceed, then \
         include it in the 'stepDependencies' field. For example, if step 2 depends on step 1, then step dependencies should look like: \
         {1: 0}.",
@@ -49,7 +49,8 @@ export const ABSTRACT_TASK_STAGE_FNS: { [key: string]: StageFunction } = {
     };
     const expectedOutputFields = {
       steps:
-        "An array of strings, each explaining in plain english a step to take toward completing the task.",
+        "An array of strings, each explaining in plain english a step to take toward completing the task. If a step involves a file, \
+        make sure to include the file name in the step description.",
       stepDependencies:
         "{[key: number]: number}. An object mapping each step index (starting at zero) to the index of the last step that it depends on. \
       Not all steps necessarily depend on others. If a step has multiple previous steps on which it depends, then map its index to \
@@ -68,7 +69,9 @@ export const ABSTRACT_TASK_STAGE_FNS: { [key: string]: StageFunction } = {
     );
     let steps: string[] = [];
     try {
-      steps = llmOutput.steps as string[];
+      if (llmOutput.steps) {
+        steps = llmOutput.steps as string[];
+      }
     } catch (_) {}
     if (steps.length == 0) {
       helpers.endStage(
@@ -99,7 +102,9 @@ export const ABSTRACT_TASK_STAGE_FNS: { [key: string]: StageFunction } = {
     }
     let successCriteria: string[] = [];
     try {
-      successCriteria = llmOutput.successCriteria as string[];
+      if (llmOutput.successCriteria) {
+        successCriteria = llmOutput.successCriteria as string[];
+      }
     } catch (_) {}
     if (steps.length == 0) {
       helpers.endStage(

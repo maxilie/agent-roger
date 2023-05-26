@@ -344,7 +344,7 @@ class RunningTask {
           prevStageData ||
           schema.stageData.parse({
             ended: true,
-            subTasksSpawned: {},
+            subTasksSpawned: [],
             fields: {},
           });
       }
@@ -394,11 +394,14 @@ class RunningTask {
   async textLlmHelper(data: TextLlmInput): Promise<JsonObj> {
     let firstOutput = "";
     let secondOutput = "";
-    let rawJson: unknown = {};
     let parsedJson: JsonObj = {};
     try {
       // get response or error
       firstOutput = await this.getTextLlmString(data);
+
+      if (!firstOutput) {
+        throw new Error("No output received from first llm call");
+      }
 
       // run first output through the llm to fix formatting
       const secondPrompt =
@@ -416,11 +419,11 @@ class RunningTask {
         \n Whenever the user gives you a json input, you validate it and return a better formatted version of it, if possible, to make \
         sure it can be parsed by JSON.parse().";
       const secondLlmInput = assembleTextLlmInput({
-        prompt: {},
+        prompt: { t: firstOutput },
         expectedOutputFields: {},
         systemMessage: secondPrompt,
       });
-      secondLlmInput.chatMlMessages = [secondPrompt, firstOutput];
+      secondLlmInput.chatMlMessages = [secondPrompt, "User: " + firstOutput];
       secondOutput = await this.getTextLlmString(secondLlmInput);
 
       // parse llm output
@@ -445,8 +448,11 @@ class RunningTask {
       }
 
       // convert to json
-      rawJson = JSON.parse(secondOutput);
-      parsedJson = schema.jsonObj.parse(rawJson);
+      try {
+        parsedJson = schema.jsonObj.parse(JSON.parse(secondOutput));
+      } catch (error) {
+        parsedJson = schema.jsonObj.parse(JSON.parse(firstOutput));
+      }
 
       // add example to list of training data to save later
       this.unsavedTrainingData.push({
@@ -467,7 +473,6 @@ class RunningTask {
       }: ${(error as Error).message}. 
         \n First output: ${firstOutput}
         \n Second output: ${secondOutput}
-        \n Raw JSON: ${JSON.stringify(rawJson, null, 2)}
         \n Parsed JSON: ${JSON.stringify(parsedJson, null, 2)}`;
       this.setHelper("pauseReason", errMessage);
       throw new Error(errMessage);
@@ -479,8 +484,8 @@ class RunningTask {
     // decide which model to use (20% chance to use GPT-4 when GPT-3.5 would suffice)
     const modelInfo =
       env.GPT4_ENABLED && (data.numInputTokens > 2000 || Math.random() < 0.2)
-        ? AI_MODELS.GPT4
-        : AI_MODELS.GPT35;
+        ? AI_MODELS.gpt4
+        : AI_MODELS.gpt35Turbo;
     const modelMaxTokens = modelInfo.maxTokens;
     const maxOutputTokens = data.maxOutputTokens
       ? Math.min(data.maxOutputTokens, modelMaxTokens - data.numInputTokens)
@@ -530,7 +535,7 @@ class RunningTask {
         return {
           role: isSystem ? "system" : isAssistant ? "assistant" : "user",
           content: msgParts.slice(1).join(":").trim(),
-          ...(!isSystem && !isAssistant ? { user: roleStr } : {}),
+          ...(!isSystem && !isAssistant ? { name: roleStr } : {}),
         };
       });
 
@@ -901,6 +906,9 @@ class RunningTask {
         paused: this.wasPaused ? true : this.taskBasicData?.paused,
         success: taskSucceeded,
         lastEndedStage,
+        ...(this.unsavedErrors.length
+          ? { runtimeErrors: this.unsavedErrors }
+          : {}),
         ...(this.unsavedResultData
           ? { resultData: this.unsavedResultData }
           : {}),

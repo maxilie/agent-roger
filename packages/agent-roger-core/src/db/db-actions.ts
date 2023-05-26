@@ -1572,7 +1572,7 @@ export const saveTrainingData = async (
       .select({ id: trainingData.id })
       .from(trainingData)
       .where(eq(trainingData.outputString, example.output));
-    if (existingExample) {
+    if (existingExample && existingExample[0] && existingExample[0].id) {
       await sqlClient
         .delete(trainingData)
         .where(eq(trainingData.id, existingExample[0].id));
