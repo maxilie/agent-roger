@@ -20,11 +20,13 @@ let neo4jDriver: neo4j.Driver;
 let redis: RedisManager;
 const rateLimiter = new RateLimiter();
 let SHUTTING_DOWN = false;
+let FULLY_INITIALIZED = false;
 const runningTaskCleanupFns: (() => Promise<void>)[] = [];
 const runningTaskIDs: number[] = [];
 let lastRedisCallTime = new Date().getTime();
 // every 5 seconds, print the number of tasks running
 const statusTimer = setInterval(() => {
+  if (SHUTTING_DOWN || !FULLY_INITIALIZED) return;
   console.log(`Tasks running: ${String(runningTaskIDs.length)}`);
 }, 5000);
 
@@ -32,6 +34,7 @@ const statusTimer = setInterval(() => {
  * Initializes and tests database connections.
  */
 const initialize = async () => {
+  FULLY_INITIALIZED = false;
   // connect to weaviate
   weaviateClient = weaviate.client({
     scheme: "https",
@@ -72,6 +75,7 @@ const initialize = async () => {
     "initializing first task pipeline with task IDs: ",
     unfinishedTaskIDs
   );
+  FULLY_INITIALIZED = true;
   await redis.restartQueues(
     unfinishedTaskIDs?.filter((taskID) => !(taskID in runningTaskIDs)) || []
   );
@@ -130,8 +134,14 @@ const runNextPipeline = async (): Promise<void> => {
     }
 
     // handle task waiting->processing result
-    if (err != null || result == null || i < results.length - numTasksToMove)
+    if (
+      err != null ||
+      result == null ||
+      i < results.length - numTasksToMove ||
+      (result as number) in runningTaskIDs
+    ) {
       continue;
+    }
     taskPromises.push(processTask(result as number));
   }
 
@@ -171,6 +181,7 @@ const processTask = async (taskID: number): Promise<void> => {
     },
     rateLimiter
   );
+  if (taskID in runningTaskIDs) return;
   runningTaskIDs.push(taskID);
   const cleanupFn = runningTask.cleanup.bind(runningTask);
   runningTaskCleanupFns.push(cleanupFn);

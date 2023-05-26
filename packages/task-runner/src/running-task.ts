@@ -39,34 +39,6 @@ import { eq } from "drizzle-orm";
 // ...and then save results to SQL if the task wasn't updated (by the dashboard user) in the meantime
 const MAX_RUN_SECS = 10;
 
-// type guard for fields which have a particular type expected by each stage function
-const isExpectedType = (value: unknown, expectedType: string): boolean => {
-  if (value === null) {
-    return expectedType === "null";
-  }
-
-  switch (expectedType) {
-    case "string":
-      return typeof value === "string";
-    case "number":
-      return typeof value === "number";
-    case "boolean":
-      return typeof value === "boolean";
-    case "object":
-      return (
-        typeof value === "object" &&
-        !Array.isArray(value) &&
-        Object.values(value).every((v) => isExpectedType(v, typeof v))
-      );
-    case "array":
-      return (
-        Array.isArray(value) && value.every((v) => isExpectedType(v, typeof v))
-      );
-    default:
-      return false;
-  }
-};
-
 class RunningTask {
   taskID: number;
   redis: RedisManager;
@@ -332,19 +304,10 @@ class RunningTask {
   }
 
   async getHelper<T extends Json | null>(key: string): Promise<T | null> {
-    console.log("");
-    console.log(`getting ${key} in stage ${this.localStageIdx}...`);
     // look for field in current stage
-    if (key in this.loadedStageData[this.localStageIdx].fields) {
+    if (key in Object.keys(this.loadedStageData[this.localStageIdx].fields)) {
       const val = this.loadedStageData[this.localStageIdx].fields[key];
-      if (!isExpectedType(val, typeof val)) {
-        throw new Error(
-          `Expected field ${key} to be ${typeof val}, but it was ${typeof val}`
-        );
-      } else {
-        console.log(`found it in the same stage: ${String(val).slice(0, 50)}`);
-        return val as T;
-      }
+      return val as T;
     }
 
     // look for field in previous stages
@@ -365,38 +328,19 @@ class RunningTask {
           });
       }
       // check previous stage data for field
-      if (key in this.loadedStageData[prevStage].fields) {
+      if (key in Object.keys(this.loadedStageData[prevStage].fields)) {
         const val = this.loadedStageData[prevStage].fields[key];
-        if (!isExpectedType(val, typeof val)) {
-          throw new Error(
-            `Expected field ${key} to be ${typeof val}, but it was ${typeof val}`
-          );
-        } else {
-          console.log(
-            `found it in stage ${prevStage}: ${String(val).slice(0, 50)}`
-          );
-          return val as T;
-        }
+        return val as T;
       }
       prevStage -= 1;
     }
     // return null if field does not exist
-    console.log("didn't find it in any stage.");
     return null;
   }
 
   setHelper(key: string, val: Json | null) {
     this.loadedStageData[this.localStageIdx].fields[key] = val;
     this.stageDataIndicesAffected.add(this.localStageIdx);
-    console.log("");
-    console.log(
-      `set {${key} in stage idx ${this.localStageIdx}} to ${String(val).slice(
-        0,
-        50
-      )}`
-    );
-    console.log("");
-    return "";
   }
 
   /**
@@ -599,8 +543,28 @@ class RunningTask {
         "Failed to call OpenAI chat completion endpoint with request: ",
         requestConfig
       );
-      console.error("Details: ", err);
-      return "";
+      try {
+        const errMessage = JSON.stringify(
+          (err as { response: { data: { error: unknown } } }).response.data
+            .error as string
+        );
+        console.error("Details: ", errMessage);
+
+        throw new Error(`"Failed to call OpenAI chat completion endpoint with request: ${JSON.stringify(
+          requestConfig,
+          null,
+          2
+        )}\n 
+        Error: ${errMessage}`);
+      } catch (_) {
+        console.error("Details: ", err);
+        throw new Error(`"Failed to call OpenAI chat completion endpoint with request: ${JSON.stringify(
+          requestConfig,
+          null,
+          2
+        )}\n 
+        Error: ${String(err)}`);
+      }
     }
   }
 
@@ -943,76 +907,76 @@ class RunningTask {
         ...(this.unsavedResultData
           ? { resultData: this.unsavedResultData }
           : {}),
-        ...(0 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(0)
           ? { stage0Data: this.loadedStageData[0] }
           : {}),
-        ...(1 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(1)
           ? { stage1Data: this.loadedStageData[1] }
           : {}),
-        ...(2 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(2)
           ? { stage2Data: this.loadedStageData[2] }
           : {}),
-        ...(3 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(3)
           ? { stage3Data: this.loadedStageData[3] }
           : {}),
-        ...(4 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(4)
           ? { stage4Data: this.loadedStageData[4] }
           : {}),
-        ...(5 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(5)
           ? { stage5Data: this.loadedStageData[5] }
           : {}),
-        ...(6 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(6)
           ? { stage6Data: this.loadedStageData[6] }
           : {}),
-        ...(7 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(7)
           ? { stage7Data: this.loadedStageData[7] }
           : {}),
-        ...(8 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(8)
           ? { stage8Data: this.loadedStageData[8] }
           : {}),
-        ...(9 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(9)
           ? { stage9Data: this.loadedStageData[9] }
           : {}),
-        ...(10 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(10)
           ? { stage10Data: this.loadedStageData[10] }
           : {}),
-        ...(11 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(11)
           ? { stage11Data: this.loadedStageData[11] }
           : {}),
-        ...(12 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(12)
           ? { stage12Data: this.loadedStageData[12] }
           : {}),
-        ...(13 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(13)
           ? { stage13Data: this.loadedStageData[13] }
           : {}),
-        ...(14 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(14)
           ? { stage14Data: this.loadedStageData[14] }
           : {}),
-        ...(15 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(15)
           ? { stage15Data: this.loadedStageData[15] }
           : {}),
-        ...(16 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(16)
           ? { stage16Data: this.loadedStageData[16] }
           : {}),
-        ...(17 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(17)
           ? { stage17Data: this.loadedStageData[17] }
           : {}),
-        ...(18 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(18)
           ? { stage18Data: this.loadedStageData[18] }
           : {}),
-        ...(19 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(19)
           ? { stage19Data: this.loadedStageData[19] }
           : {}),
-        ...(20 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(20)
           ? { stage20Data: this.loadedStageData[20] }
           : {}),
-        ...(21 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(21)
           ? { stage21Data: this.loadedStageData[21] }
           : {}),
-        ...(22 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(22)
           ? { stage22Data: this.loadedStageData[22] }
           : {}),
-        ...(23 in this.stageDataIndicesAffected
+        ...(this.stageDataIndicesAffected.has(23)
           ? { stage23Data: this.loadedStageData[23] }
           : {}),
       });
