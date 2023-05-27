@@ -730,99 +730,108 @@ const SelectedTask: FC<
   const [userStage0Data, setUserStage0Data] = useState<string | null>(
     props.stage0Data
   );
-  useEffect(() => setUserStage0Data(props.stage0Data), [props.stage0Data]);
   const [userStage1Data, setUserStage1Data] = useState<string | null>(
     props.stage1Data
   );
-  useEffect(() => setUserStage1Data(props.stage1Data), [props.stage1Data]);
   const [userStage2Data, setUserStage2Data] = useState<string | null>(
     props.stage2Data
   );
-  useEffect(() => setUserStage2Data(props.stage2Data), [props.stage2Data]);
   const [userStage3Data, setUserStage3Data] = useState<string | null>(
     props.stage3Data
   );
-  useEffect(() => setUserStage3Data(props.stage3Data), [props.stage3Data]);
   const [userStage4Data, setUserStage4Data] = useState<string | null>(
     props.stage4Data
   );
-  useEffect(() => setUserStage4Data(props.stage4Data), [props.stage4Data]);
   const [userStage5Data, setUserStage5Data] = useState<string | null>(
     props.stage5Data
   );
-  useEffect(() => setUserStage5Data(props.stage5Data), [props.stage5Data]);
   const [userStage6Data, setUserStage6Data] = useState<string | null>(
     props.stage6Data
   );
-  useEffect(() => setUserStage6Data(props.stage6Data), [props.stage6Data]);
   const [userStage7Data, setUserStage7Data] = useState<string | null>(
     props.stage7Data
   );
-  useEffect(() => setUserStage7Data(props.stage7Data), [props.stage7Data]);
   const [userStage8Data, setUserStage8Data] = useState<string | null>(
     props.stage8Data
   );
-  useEffect(() => setUserStage8Data(props.stage8Data), [props.stage8Data]);
   const [userStage9Data, setUserStage9Data] = useState<string | null>(
     props.stage9Data
   );
-  useEffect(() => setUserStage9Data(props.stage9Data), [props.stage9Data]);
   const [userStage10Data, setUserStage10Data] = useState<string | null>(
     props.stage10Data
   );
-  useEffect(() => setUserStage10Data(props.stage10Data), [props.stage10Data]);
   const [userStage11Data, setUserStage11Data] = useState<string | null>(
     props.stage11Data
   );
-  useEffect(() => setUserStage11Data(props.stage11Data), [props.stage11Data]);
   const [userStage12Data, setUserStage12Data] = useState<string | null>(
     props.stage12Data
   );
-  useEffect(() => setUserStage12Data(props.stage12Data), [props.stage12Data]);
   const [userStage13Data, setUserStage13Data] = useState<string | null>(
     props.stage13Data
   );
-  useEffect(() => setUserStage13Data(props.stage13Data), [props.stage13Data]);
   const [userStage14Data, setUserStage14Data] = useState<string | null>(
     props.stage14Data
   );
-  useEffect(() => setUserStage14Data(props.stage14Data), [props.stage14Data]);
   const [userStage15Data, setUserStage15Data] = useState<string | null>(
     props.stage15Data
   );
-  useEffect(() => setUserStage15Data(props.stage15Data), [props.stage15Data]);
   const [userStage16Data, setUserStage16Data] = useState<string | null>(
     props.stage16Data
   );
-  useEffect(() => setUserStage16Data(props.stage16Data), [props.stage16Data]);
   const [userStage17Data, setUserStage17Data] = useState<string | null>(
     props.stage17Data
   );
-  useEffect(() => setUserStage17Data(props.stage17Data), [props.stage17Data]);
   const [userStage18Data, setUserStage18Data] = useState<string | null>(
     props.stage18Data
   );
-  useEffect(() => setUserStage18Data(props.stage18Data), [props.stage18Data]);
   const [userStage19Data, setUserStage19Data] = useState<string | null>(
     props.stage19Data
   );
-  useEffect(() => setUserStage19Data(props.stage19Data), [props.stage19Data]);
   const [userStage20Data, setUserStage20Data] = useState<string | null>(
     props.stage20Data
   );
-  useEffect(() => setUserStage20Data(props.stage20Data), [props.stage20Data]);
   const [userStage21Data, setUserStage21Data] = useState<string | null>(
     props.stage21Data
   );
-  useEffect(() => setUserStage21Data(props.stage21Data), [props.stage21Data]);
   const [userStage22Data, setUserStage22Data] = useState<string | null>(
     props.stage22Data
   );
-  useEffect(() => setUserStage22Data(props.stage22Data), [props.stage22Data]);
   const [userStage23Data, setUserStage23Data] = useState<string | null>(
     props.stage23Data
   );
-  useEffect(() => setUserStage23Data(props.stage23Data), [props.stage23Data]);
+  useEffect(() => {
+    setUserSuccess(props.success);
+    setUserLastEndedStage(props.lastEndedStage);
+    setUserInitialInputFields(props.initialInputFields);
+    setUserInitialContextFields(props.initialContextFields);
+    setUserInitialContextSummary(props.initialContextSummary);
+    setUserResultData(props.resultData);
+    setUserRuntimeErrors(props.runtimeErrors);
+    setUserStage0Data(props.stage0Data);
+    setUserStage1Data(props.stage1Data);
+    setUserStage2Data(props.stage2Data);
+    setUserStage3Data(props.stage3Data);
+    setUserStage4Data(props.stage4Data);
+    setUserStage5Data(props.stage5Data);
+    setUserStage6Data(props.stage6Data);
+    setUserStage7Data(props.stage7Data);
+    setUserStage8Data(props.stage8Data);
+    setUserStage9Data(props.stage9Data);
+    setUserStage10Data(props.stage10Data);
+    setUserStage11Data(props.stage11Data);
+    setUserStage12Data(props.stage12Data);
+    setUserStage13Data(props.stage13Data);
+    setUserStage14Data(props.stage14Data);
+    setUserStage15Data(props.stage15Data);
+    setUserStage16Data(props.stage16Data);
+    setUserStage17Data(props.stage17Data);
+    setUserStage18Data(props.stage18Data);
+    setUserStage19Data(props.stage19Data);
+    setUserStage20Data(props.stage20Data);
+    setUserStage21Data(props.stage21Data);
+    setUserStage22Data(props.stage22Data);
+    setUserStage23Data(props.stage23Data);
+  }, [props.taskID]);
 
   // create a task title
   const firstInputField: string =
