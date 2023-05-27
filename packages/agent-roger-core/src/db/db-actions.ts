@@ -660,9 +660,9 @@ export const getTaskTreeIDs = async (
     const taskIDs = new Set<number>([input.rootTaskID]);
     result.records.forEach((record) => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      taskIDs.add(record.get("source").properties.taskID.toInt());
+      taskIDs.add(+record.get("source").properties.taskID);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      taskIDs.add(record.get("target").properties.taskID.toInt());
+      taskIDs.add(+record.get("target").properties.taskID);
     });
 
     // return unique task IDs
@@ -716,9 +716,9 @@ export const deleteTaskTree = async (
     // process nodes from neo4j
     result.records.forEach((record) => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      taskIDsToDelete.add(record.get("source").properties.taskID.toInt());
+      taskIDsToDelete.add(+record.get("source").properties.taskID);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      taskIDsToDelete.add(record.get("target").properties.taskID.toInt());
+      taskIDsToDelete.add(+record.get("target").properties.taskID);
     });
 
     // delete nodes and relationships in neo4j
@@ -782,18 +782,14 @@ export const getTaskTree = async (
     const links: { source: number; target: number }[] = [];
     result.records.forEach((record) => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      console.log(record.get("source").properties);
+      taskIDs.add(+record.get("source").properties.taskID);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      taskIDs.add(record.get("source").properties.taskID.toInt());
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      console.log(record.get("target").properties);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      taskIDs.add(record.get("target").properties.taskID.toInt());
+      taskIDs.add(+record.get("target").properties.taskID);
       links.push({
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
-        source: record.get("source").properties.taskID.toInt(),
+        source: +record.get("source").properties.taskID,
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
-        target: record.get("target").properties.taskID.toInt(),
+        target: +record.get("target").properties.taskID,
       });
     });
 
@@ -925,9 +921,9 @@ export const pauseTaskTree = async (
     // process nodes from neo4j
     result.records.forEach((record) => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      taskIDsToPause.add(record.get("source").properties.taskID.toInt());
+      taskIDsToPause.add(+record.get("source").properties.taskID);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      taskIDsToPause.add(record.get("target").properties.taskID.toInt());
+      taskIDsToPause.add(+record.get("target").properties.taskID);
     });
 
     // pause tasks in SQL
@@ -976,9 +972,9 @@ export const unpauseTaskTree = async (
     // process nodes from neo4j
     result.records.forEach((record) => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      taskIDsToUnpause.add(record.get("source").properties.taskID.toInt());
+      taskIDsToUnpause.add(+record.get("source").properties.taskID);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      taskIDsToUnpause.add(record.get("target").properties.taskID.toInt());
+      taskIDsToUnpause.add(+record.get("target").properties.taskID);
     });
 
     // unpause tasks in SQL
@@ -1027,9 +1023,9 @@ export const killDescendents = async (
     // process nodes from neo4j
     result.records.forEach((record) => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      taskIDsToKill.add(record.get("source").properties.taskID.toInt());
+      taskIDsToKill.add(+record.get("source").properties.taskID);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      taskIDsToKill.add(record.get("target").properties.taskID.toInt());
+      taskIDsToKill.add(+record.get("target").properties.taskID);
     });
     taskIDsToKill.delete(input.taskID);
 
@@ -1094,9 +1090,9 @@ export const restartTaskTree = async (
     // process descendent nodes from neo4j
     descendentsResult.records.forEach((record) => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      descendentTaskIDs.add(record.get("source").properties.taskID.toInt());
+      descendentTaskIDs.add(+record.get("source").properties.taskID);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      descendentTaskIDs.add(record.get("target").properties.taskID.toInt());
+      descendentTaskIDs.add(+record.get("target").properties.taskID);
     });
     descendentTaskIDs.delete(input.taskID);
 
@@ -1114,9 +1110,9 @@ export const restartTaskTree = async (
     // process descendent nodes from neo4j
     ancestorsResult.records.forEach((record) => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      ancestorTaskIDs.add(record.get("source").properties.taskID.toInt());
+      ancestorTaskIDs.add(+record.get("source").properties.taskID);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      ancestorTaskIDs.add(record.get("target").properties.taskID.toInt());
+      ancestorTaskIDs.add(+record.get("target").properties.taskID);
     });
     ancestorTaskIDs.delete(input.taskID);
 
@@ -1471,9 +1467,9 @@ export const restartTaskTree = async (
     );
     dependentTreesResults.records.forEach((record) => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      taskIDsToKill.add(record.get("source").properties.taskID.toInt());
+      taskIDsToKill.add(+record.get("source").properties.taskID);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      taskIDsToKill.add(record.get("target").properties.taskID.toInt());
+      taskIDsToKill.add(+record.get("target").properties.taskID);
     });
 
     // kill descendents and dependents (of taskToRestart) in SQL
