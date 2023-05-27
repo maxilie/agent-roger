@@ -776,17 +776,17 @@ export const getTaskTree = async (
       }
     );
     await neo4jSession.close();
-    console.log("getTaskTree result: ");
-    console.log(result);
-    console.log(result.records);
-    console.log(result.records[0]);
 
     // process nodes and links
     const taskIDs = new Set<number>([input.rootTaskID]);
     const links: { source: number; target: number }[] = [];
     result.records.forEach((record) => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      console.log(record.get("source").properties);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       taskIDs.add(record.get("source").properties.taskID.toInt());
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      console.log(record.get("target").properties);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       taskIDs.add(record.get("target").properties.taskID.toInt());
       links.push({
