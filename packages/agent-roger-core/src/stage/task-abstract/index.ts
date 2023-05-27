@@ -138,7 +138,7 @@ export const ABSTRACT_TASK_STAGE_FNS: { [key: string]: StageFunction } = {
     };
     const expectedOutputFields = {
       detailedInstructions:
-        "A string, no more than 200 words, describing how to complete the 'subTaskToComplete'.",
+        "A string, no more than 200 words, describing how a computer would complete the 'subTaskToComplete'.",
     };
     const promises: Promise<JsonObj>[] = steps.map((step) => {
       return helpers.textLLM(

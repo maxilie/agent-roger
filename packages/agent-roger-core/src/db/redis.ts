@@ -31,7 +31,7 @@ export class RedisManager {
   /**
    * Clears processing & waiting queues and populates waiting queue with unfinished tasks from SQL.
    *
-   * Uses a redis transaction to ensure other task runners do not move edit the queues while this is happening.
+   * Uses a redis transaction to ensure other task runners do not edit the queues while this is happening.
    *
    * If another task runner is processing a task:
    *  1) this task runner clears both queues and puts the task id in the waiting queue.

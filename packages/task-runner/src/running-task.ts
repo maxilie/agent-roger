@@ -305,8 +305,8 @@ class RunningTask {
 
   async getHelper<T extends Json | null>(key: string): Promise<T | null> {
     // look for field in current stage
-    if (key in Object.keys(this.loadedStageData[this.localStageIdx].fields)) {
-      const val = this.loadedStageData[this.localStageIdx].fields[key];
+    const val = this.loadedStageData[this.localStageIdx].fields[key];
+    if (val !== undefined && val !== null) {
       return val as T;
     }
 
@@ -328,8 +328,8 @@ class RunningTask {
           });
       }
       // check previous stage data for field
-      if (key in Object.keys(this.loadedStageData[prevStage].fields)) {
-        const val = this.loadedStageData[prevStage].fields[key];
+      const val = this.loadedStageData[prevStage].fields[key];
+      if (val !== undefined && val !== null) {
         return val as T;
       }
       prevStage -= 1;
@@ -876,7 +876,7 @@ class RunningTask {
           lastInteractionMarker != this.taskBasicData?.lastInteractionMarker
         ) {
           console.warn(
-            "Task was modified externally. Task runner's changes will not be saved."
+            `Task #${this.taskID} was modified externally. Task runner's changes will not be saved.`
           );
           await this.cleanup();
           return;

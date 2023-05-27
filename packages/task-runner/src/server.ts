@@ -22,12 +22,12 @@ const rateLimiter = new RateLimiter();
 let SHUTTING_DOWN = false;
 let FULLY_INITIALIZED = false;
 const runningTaskCleanupFns: (() => Promise<void>)[] = [];
-const runningTaskIDs: number[] = [];
+const runningTaskIDs = new Set<number>();
 let lastRedisCallTime = new Date().getTime();
 // every 5 seconds, print the number of tasks running
 const statusTimer = setInterval(() => {
   if (SHUTTING_DOWN || !FULLY_INITIALIZED) return;
-  console.log(`Tasks running: ${String(runningTaskIDs.length)}`);
+  console.log(`Tasks running: ${String(runningTaskIDs.size)}`);
 }, 5000);
 
 /**
@@ -77,7 +77,7 @@ const initialize = async () => {
   );
   FULLY_INITIALIZED = true;
   await redis.restartQueues(
-    unfinishedTaskIDs?.filter((taskID) => !(taskID in runningTaskIDs)) || []
+    unfinishedTaskIDs?.filter((taskID) => !runningTaskIDs.has(taskID)) || []
   );
 };
 
@@ -95,7 +95,7 @@ const runNextPipeline = async (): Promise<void> => {
 
   // add to end of pipeline: move at least 5 tasks from waiting queue to processing queue.
   const numTasksToMove = Math.min(
-    MAX_CONCURRENT_TASKS - runningTaskIDs.length,
+    MAX_CONCURRENT_TASKS - runningTaskIDs.size,
     Math.max(5, redis.pipeline.length)
   );
   for (let i = 0; i < numTasksToMove; i++) {
@@ -124,7 +124,7 @@ const runNextPipeline = async (): Promise<void> => {
     const [err, result] = results[i];
 
     // handle inference request result
-    if (i in redis.inferenceResultPromiseResolvers) {
+    if (redis.inferenceResultPromiseResolvers[i]) {
       inferenceResultPromises.push({
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
         resolver: redis.inferenceResultPromiseResolvers[i],
@@ -138,7 +138,7 @@ const runNextPipeline = async (): Promise<void> => {
       err != null ||
       result == null ||
       i < results.length - numTasksToMove ||
-      (result as number) in runningTaskIDs
+      runningTaskIDs.has(result as number)
     ) {
       continue;
     }
@@ -173,7 +173,7 @@ const runNextPipeline = async (): Promise<void> => {
 
 const processTask = async (taskID: number): Promise<void> => {
   const runningTask = new RunningTask(
-    taskID,
+    +taskID,
     {
       redis,
       weaviateClient,
@@ -181,13 +181,14 @@ const processTask = async (taskID: number): Promise<void> => {
     },
     rateLimiter
   );
-  if (taskID in runningTaskIDs) return;
-  runningTaskIDs.push(taskID);
+  if (runningTaskIDs.has(+taskID)) return;
+  console.log("adding runningTaskID #" + String(taskID));
+  runningTaskIDs.add(+taskID);
   const cleanupFn = runningTask.cleanup.bind(runningTask);
   runningTaskCleanupFns.push(cleanupFn);
   await runningTask.runNextStages();
   runningTaskCleanupFns.splice(runningTaskCleanupFns.indexOf(cleanupFn), 1);
-  runningTaskIDs.splice(runningTaskIDs.indexOf(taskID), 1);
+  runningTaskIDs.delete(+taskID);
 };
 
 const main = () => {
@@ -207,7 +208,7 @@ const main = () => {
             if (SHUTTING_DOWN) return;
             await redis.restartQueues(
               unfinishedTaskIDs?.filter(
-                (taskID) => !(taskID in runningTaskIDs)
+                (taskID) => !runningTaskIDs.has(taskID)
               ) || []
             );
           } catch (error) {
@@ -248,14 +249,14 @@ process.on("SIGINT", () => {
   SHUTTING_DOWN = true;
   clearInterval(statusTimer);
   const cleanupTasks = async () => {
-    if (runningTaskIDs.length > 0) {
+    if (runningTaskIDs.size > 0) {
       console.log(
-        `Waiting for ${String(runningTaskIDs.length)} tasks to clean up...`
+        `Waiting for ${String(runningTaskIDs.size)} tasks to clean up...`
       );
       // eslint-disable-next-line @typescript-eslint/no-empty-function
       Promise.all(runningTaskCleanupFns).catch((error) => {});
       let retries = 0;
-      while (retries < 5 && runningTaskIDs.length > 0) {
+      while (retries < 5 && runningTaskIDs.size > 0) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         retries++;
       }

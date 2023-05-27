@@ -776,6 +776,10 @@ export const getTaskTree = async (
       }
     );
     await neo4jSession.close();
+    console.log("getTaskTree result: ");
+    console.log(result);
+    console.log(result.records);
+    console.log(result.records[0]);
 
     // process nodes and links
     const taskIDs = new Set<number>([input.rootTaskID]);
