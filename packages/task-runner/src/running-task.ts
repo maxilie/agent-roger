@@ -465,7 +465,10 @@ only to modify the contents and/or structure of the data based on the expert obs
 be made, then output the original JSON data exactly as you received it. No matter what, your response must only be a JSON string, with \
 no additional explanation, commentary, or formatting. If your output cannot be parsed into a JSON object using JSON.parse(), then \
 an entire species of endangered fish with promising medicinal properties will be eradicated as a direct result of the invalid JSON \
-string. Therefore, it is crucial that you only output a JSON object, like the one you received, beginning with { and ending with }";
+string. Therefore, it is crucial that you only output a JSON object, like the one you received, beginning with { and ending with } \
+\nFinally, do not include anything in the response that directly contradicts the request, does not make sense given the request, or \
+is unlikely to be relevant to the request. For example, if the request says not to mention anything about using a terminal or locating \
+a file, then do not include anything about using a terminal or locating a file.";
       const improvementLlmInput = assembleTextLlmInput({
         prompt: { t: observationStr, tt: initialSampleJson },
         systemMessage: observationLlmPrompt,
@@ -625,7 +628,7 @@ fix this error, and where specifically is the problem located? The error is: ${(
           expectedOutputFields: {},
           systemMessage: secondPrompt,
         });
-        thirdLlmInput.chatMlMessages = [
+        fourthLlmInput.chatMlMessages = [
           secondPrompt,
           `User: There is a problem with an invalid json string: ${problemAndSolutionStr}. \nThe invalid JSON string is: ${firstOutput}`,
         ];
@@ -653,15 +656,19 @@ fix this error, and where specifically is the problem located? The error is: ${(
     data: TextLlmInput,
     temperature: number
   ): Promise<string> {
+    temperature = parseFloat(temperature.toFixed(2));
     // decide which model to use (20% chance to use GPT-4 when GPT-3.5 would suffice)
     const modelInfo =
       env.GPT4_ENABLED && (data.numInputTokens > 2000 || Math.random() < 0.2)
         ? AI_MODELS.gpt4
         : AI_MODELS.gpt35Turbo;
     const modelMaxTokens = modelInfo.maxTokens;
+    const completionTokensConservativeEstimate = Math.floor(
+      modelMaxTokens * 0.95 - data.numInputTokens * 0.9 - 50
+    );
     const maxOutputTokens = data.maxOutputTokens
-      ? Math.min(data.maxOutputTokens, modelMaxTokens - data.numInputTokens)
-      : modelMaxTokens - data.numInputTokens;
+      ? Math.min(data.maxOutputTokens, completionTokensConservativeEstimate)
+      : completionTokensConservativeEstimate;
 
     // validate input length
     if (data.numInputTokens > modelMaxTokens * 0.95) {

@@ -858,6 +858,7 @@ const SelectedTask: FC<
       setUserStage22Data(props.stage22Data);
     if (userStage23Data != props.stage23Data)
       setUserStage23Data(props.stage23Data);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     props.initialContextFields,
     props.initialContextSummary,
@@ -891,30 +892,6 @@ const SelectedTask: FC<
     props.stage9Data,
     props.success,
     props.taskID,
-    userStage0Data,
-    userStage10Data,
-    userStage11Data,
-    userStage12Data,
-    userStage13Data,
-    userStage14Data,
-    userStage15Data,
-    userStage16Data,
-    userStage17Data,
-    userStage18Data,
-    userStage19Data,
-    userStage1Data,
-    userStage20Data,
-    userStage21Data,
-    userStage22Data,
-    userStage23Data,
-    userStage2Data,
-    userStage3Data,
-    userStage4Data,
-    userStage5Data,
-    userStage6Data,
-    userStage7Data,
-    userStage8Data,
-    userStage9Data,
     userTaskID,
   ]);
 
