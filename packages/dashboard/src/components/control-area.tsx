@@ -707,6 +707,7 @@ const SelectedTask: FC<
   } & SelectedTaskProps
 > = (props) => {
   // state vars for editable fields
+  const [userTaskID, setUserTaskID] = useState<number | null>(props.taskID);
   const [userSuccess, setUserSuccess] = useState<boolean | null>(props.success);
   const [userLastEndedStage, setUserLastEndedStage] = useState<number>(
     props.lastEndedStage
@@ -800,38 +801,122 @@ const SelectedTask: FC<
     props.stage23Data
   );
   useEffect(() => {
-    setUserSuccess(props.success);
-    setUserLastEndedStage(props.lastEndedStage);
-    setUserInitialInputFields(props.initialInputFields);
-    setUserInitialContextFields(props.initialContextFields);
-    setUserInitialContextSummary(props.initialContextSummary);
-    setUserResultData(props.resultData);
-    setUserRuntimeErrors(props.runtimeErrors);
-    setUserStage0Data(props.stage0Data);
-    setUserStage1Data(props.stage1Data);
-    setUserStage2Data(props.stage2Data);
-    setUserStage3Data(props.stage3Data);
-    setUserStage4Data(props.stage4Data);
-    setUserStage5Data(props.stage5Data);
-    setUserStage6Data(props.stage6Data);
-    setUserStage7Data(props.stage7Data);
-    setUserStage8Data(props.stage8Data);
-    setUserStage9Data(props.stage9Data);
-    setUserStage10Data(props.stage10Data);
-    setUserStage11Data(props.stage11Data);
-    setUserStage12Data(props.stage12Data);
-    setUserStage13Data(props.stage13Data);
-    setUserStage14Data(props.stage14Data);
-    setUserStage15Data(props.stage15Data);
-    setUserStage16Data(props.stage16Data);
-    setUserStage17Data(props.stage17Data);
-    setUserStage18Data(props.stage18Data);
-    setUserStage19Data(props.stage19Data);
-    setUserStage20Data(props.stage20Data);
-    setUserStage21Data(props.stage21Data);
-    setUserStage22Data(props.stage22Data);
-    setUserStage23Data(props.stage23Data);
-  }, [props.taskID]);
+    if (userTaskID != props.taskID) {
+      setUserTaskID(props.taskID);
+      setUserSuccess(props.success);
+      setUserLastEndedStage(props.lastEndedStage);
+      setUserInitialInputFields(props.initialInputFields);
+      setUserInitialContextFields(props.initialContextFields);
+      setUserInitialContextSummary(props.initialContextSummary);
+      setUserResultData(props.resultData);
+      setUserRuntimeErrors(props.runtimeErrors);
+    }
+    if (userStage0Data !== props.stage0Data)
+      setUserStage0Data(props.stage0Data);
+    if (userStage1Data !== props.stage1Data)
+      setUserStage1Data(props.stage1Data);
+    if (userStage2Data !== props.stage2Data)
+      setUserStage2Data(props.stage2Data);
+    if (userStage3Data !== props.stage3Data)
+      setUserStage3Data(props.stage3Data);
+    if (userStage4Data !== props.stage4Data)
+      setUserStage4Data(props.stage4Data);
+    if (userStage5Data !== props.stage5Data)
+      setUserStage5Data(props.stage5Data);
+    if (userStage6Data !== props.stage6Data)
+      setUserStage6Data(props.stage6Data);
+    if (userStage7Data !== props.stage7Data)
+      setUserStage7Data(props.stage7Data);
+    if (userStage8Data !== props.stage8Data)
+      setUserStage8Data(props.stage8Data);
+    if (userStage9Data != props.stage9Data) setUserStage9Data(props.stage9Data);
+    if (userStage10Data != props.stage10Data)
+      setUserStage10Data(props.stage10Data);
+    if (userStage11Data != props.stage11Data)
+      setUserStage11Data(props.stage11Data);
+    if (userStage12Data != props.stage12Data)
+      setUserStage12Data(props.stage12Data);
+    if (userStage13Data != props.stage13Data)
+      setUserStage13Data(props.stage13Data);
+    if (userStage14Data != props.stage14Data)
+      setUserStage14Data(props.stage14Data);
+    if (userStage15Data != props.stage15Data)
+      setUserStage15Data(props.stage15Data);
+    if (userStage16Data != props.stage16Data)
+      setUserStage16Data(props.stage16Data);
+    if (userStage17Data != props.stage17Data)
+      setUserStage17Data(props.stage17Data);
+    if (userStage18Data != props.stage18Data)
+      setUserStage18Data(props.stage18Data);
+    if (userStage19Data != props.stage19Data)
+      setUserStage19Data(props.stage19Data);
+    if (userStage20Data != props.stage20Data)
+      setUserStage20Data(props.stage20Data);
+    if (userStage21Data != props.stage21Data)
+      setUserStage21Data(props.stage21Data);
+    if (userStage22Data != props.stage22Data)
+      setUserStage22Data(props.stage22Data);
+    if (userStage23Data != props.stage23Data)
+      setUserStage23Data(props.stage23Data);
+  }, [
+    props.initialContextFields,
+    props.initialContextSummary,
+    props.initialInputFields,
+    props.lastEndedStage,
+    props.resultData,
+    props.runtimeErrors,
+    props.stage0Data,
+    props.stage10Data,
+    props.stage11Data,
+    props.stage12Data,
+    props.stage13Data,
+    props.stage14Data,
+    props.stage15Data,
+    props.stage16Data,
+    props.stage17Data,
+    props.stage18Data,
+    props.stage19Data,
+    props.stage1Data,
+    props.stage20Data,
+    props.stage21Data,
+    props.stage22Data,
+    props.stage23Data,
+    props.stage2Data,
+    props.stage3Data,
+    props.stage4Data,
+    props.stage5Data,
+    props.stage6Data,
+    props.stage7Data,
+    props.stage8Data,
+    props.stage9Data,
+    props.success,
+    props.taskID,
+    userStage0Data,
+    userStage10Data,
+    userStage11Data,
+    userStage12Data,
+    userStage13Data,
+    userStage14Data,
+    userStage15Data,
+    userStage16Data,
+    userStage17Data,
+    userStage18Data,
+    userStage19Data,
+    userStage1Data,
+    userStage20Data,
+    userStage21Data,
+    userStage22Data,
+    userStage23Data,
+    userStage2Data,
+    userStage3Data,
+    userStage4Data,
+    userStage5Data,
+    userStage6Data,
+    userStage7Data,
+    userStage8Data,
+    userStage9Data,
+    userTaskID,
+  ]);
 
   // create a task title
   const firstInputField: string =

@@ -5,7 +5,7 @@ import {
 import { TASK_PRESETS } from "../presets.js";
 import { getTaskBasicData } from "../../db/db-actions.js";
 
-const maxLlmWords = 1000;
+const maxLlmWords = 600;
 
 export const EXECUTE_SHELL_STAGE_FNS: { [key: string]: StageFunction } = {
   execCommand: async (helpers: StageFunctionHelpers) => {

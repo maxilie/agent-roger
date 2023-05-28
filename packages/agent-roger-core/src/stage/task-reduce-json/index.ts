@@ -7,7 +7,7 @@ import {
   type StageFunction,
 } from "../stage-function.js";
 
-const maxLlmWords = 1300;
+const maxLlmWords = 800;
 const maxFieldWords = maxLlmWords / 10;
 const chunkSize = maxLlmWords / 7;
 const numChunks = 3;

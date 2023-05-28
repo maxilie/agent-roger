@@ -5,7 +5,7 @@ import {
 import { TASK_PRESETS } from "../presets.js";
 import { getTaskBasicData } from "../../db/db-actions.js";
 
-const maxLlmWords = 1400;
+const maxLlmWords = 850;
 const maxLineWords = maxLlmWords / 9.8;
 const maxWordChars = 180;
 const chunkSize = maxLlmWords / 6.5;

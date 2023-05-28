@@ -7,7 +7,7 @@ import { getTaskBasicData } from "../../db/db-actions.js";
 import { assembleTextLlmInput } from "../../model-input/index.js";
 import { type Json } from "../../zod-schema/stage-base/json.js";
 
-const maxLlmWords = 1300;
+const maxLlmWords = 800;
 const numChunks = 4;
 
 export const SUMMARIZE_TEXT_STAGE_FNS: { [key: string]: StageFunction } = {

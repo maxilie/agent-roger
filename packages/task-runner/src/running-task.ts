@@ -361,15 +361,190 @@ class RunningTask {
   }
 
   /**
-   * Uses the llm to generate the `data.requestedOutputFields` and validates it with another llm.
+   * Uses multiple LLM samples with different temperatures to generate high-quality data for the `data.requestedOutputFields`.
    */
   async textLlmHelper(data: TextLlmInput): Promise<JsonObj> {
+    const numHighTempSamples = 2;
+    const numLowTempSamples = 1;
+    // concurrently process multiple samples with different temperatures
+    const promises = [];
+    for (let i = 0; i < numHighTempSamples; i++) {
+      promises.push(this.generateAndRateLlmSample(data, 0.68, 0.78));
+    }
+    for (let i = 0; i < numLowTempSamples; i++) {
+      promises.push(this.generateAndRateLlmSample(data, 0.55, 0.65));
+    }
+    const results = await Promise.allSettled(promises);
+    // get highest-rated sample
+    let bestResult: JsonObj | null = null;
+    let bestRating = -1;
+    for (const result of results) {
+      if (result.status === "rejected") {
+        console.log(
+          "failed to generate a sample & rating from the llm: ",
+          result.reason
+        );
+        continue;
+      }
+      const output = result.value.output;
+      if (result.value.output && result.value.rating > bestRating) {
+        bestResult = output;
+        bestRating = result.value.rating;
+      }
+    }
+    // ensure at least one result was generated
+    if (!bestResult) {
+      throw new Error(
+        "Failed to generate any samples with ratings from the LLM. Please try again."
+      );
+    }
+    // add example to list of training data to save later
+    this.unsavedTrainingData.push({
+      input: data.chatMlMessages,
+      output: JSON.stringify(bestResult),
+      qualityRating: 0,
+    });
+
+    // check if the AI has requested to pause the task
+    if (bestResult.pauseReason) {
+      this.setHelper("pauseReason", bestResult.pauseReason);
+      this.setHelper("pausedLlmInput", data.chatMlMessages);
+      this.setHelper("pausedLlmOutput", bestResult);
+      throw new Error(
+        "LLM decided to pause the task. pauseReason: " +
+          String(bestResult.pauseReason)
+      );
+    }
+    // return the best result
+    return bestResult;
+  }
+
+  /**
+   * Generates json, then makes an observation about it, improves it, and rates its quality on a scale from 1 to 10.
+   */
+  async generateAndRateLlmSample(
+    data: TextLlmInput,
+    minTemperature: number,
+    maxTemperature: number
+  ): Promise<{ output: JsonObj; rating: number }> {
+    const temperature =
+      minTemperature + Math.random() * (maxTemperature - minTemperature);
+    // generate initial json
+    const initialSampleJson = await this.getTextLlmJson(data, temperature);
+    // make an observation
+    const initialInputMinusSystemMsg = data.chatMlMessages.slice(1).join("\n");
+    const observationLlmPrompt =
+      "System: You are a highly logical and perceptive expert at understanding JSON data holistically, meaning you can understand the \
+intent behind the data and can detect when the data is lacking specificity or is not optimally structured to accomplish its goal. The \
+user has crafted some JSON in response to a request. Your task is to make observations on the JSON response in relation to the request. \
+Ignore formatting to focus on the structure and content of the JSON response. Your observations should be no longer than a paragraph. \
+If you think the JSON response is already perfect, simply respond with 'OK' in all capital letters.";
+    const observationLlmInput = assembleTextLlmInput({
+      prompt: { t: initialInputMinusSystemMsg, tt: initialSampleJson },
+      systemMessage: observationLlmPrompt,
+      expectedOutputFields: {},
+    });
+    observationLlmInput.chatMlMessages = [
+      observationLlmPrompt,
+      `User: Here is a request and accompanying JSON response to observe:\n\n___\nREQUEST:\n___\n\n
+${initialInputMinusSystemMsg}\n\n___\nJSON RESPONSE:\n___\n\n
+${JSON.stringify(initialSampleJson)}`,
+    ];
+    const observationStr = await this.getTextLlmString(
+      observationLlmInput,
+      temperature
+    );
+    // improve json based on the observation
+    let improvedSampleJson = initialSampleJson;
+    if (observationStr.length > 40) {
+      const improvementLlmPrompt =
+        "System: You are a highly logical and perceptive expert at understanding JSON data holistically, meaning you can understand the \
+intent behind the data. Your task is to improve the JSON data based on the observations made by another expert. You must only output a \
+valid and complete JSON string like the JSON data you are improving. Your job is not to reformat the string escaping of the JSON, but \
+only to modify the contents and/or structure of the data based on the expert observations. If there are no actionable improvements to \
+be made, then output the original JSON data exactly as you received it. No matter what, your response must only be a JSON string, with \
+no additional explanation, commentary, or formatting. If your output cannot be parsed into a JSON object using JSON.parse(), then \
+an entire species of endangered fish with promising medicinal properties will be eradicated as a direct result of the invalid JSON \
+string. Therefore, it is crucial that you only output a JSON object, like the one you received, beginning with { and ending with }";
+      const improvementLlmInput = assembleTextLlmInput({
+        prompt: { t: observationStr, tt: initialSampleJson },
+        systemMessage: observationLlmPrompt,
+        expectedOutputFields: {},
+      });
+      improvementLlmInput.chatMlMessages = [
+        improvementLlmPrompt,
+        `User: Here is the JSON data to improve: 
+${JSON.stringify(
+  initialSampleJson
+)}\n\nHere is the expert's observation to base your improvements on: ${observationStr}`,
+      ];
+      improvedSampleJson = await this.getTextLlmJson(
+        improvementLlmInput,
+        temperature
+      );
+    }
+    // rate the quality of the json
+    const ratingLlmPrompt =
+      "System: You are a highly logical and perceptive expert at understanding JSON data holistically, meaning \
+you can understand the intent behind the data and can detect when the data is lacking specificity or is not optimally structured \
+to accomplish its goal. Your task is to evaluate the effectiveness of a JSON response that the user thinks will adequately address \
+the request. In 1-2 short paragraphs, explain why the JSON response is or is not effective. Identify the most serious potential \
+problems with the JSON response, if any, and assess the likelihood and magnitude of the problem(s). Culminate your evaluation with \
+a numerical rating from 1 to 10, in increments of 0.5, where 1 is the worst possible JSON response and 10 is the best possible JSON \
+response. The very last word of your response must be the number rating, or else an endangered species could go extinct. For example, \
+'I rate the JSON response: 8.5' is good, but if you end with 'My rating: 8.5/10, because...', then the endangered species will go extinct.";
+    const ratingLlmInput = assembleTextLlmInput({
+      prompt: { t: initialInputMinusSystemMsg, tt: improvedSampleJson },
+      systemMessage: ratingLlmPrompt,
+      expectedOutputFields: {},
+    });
+    ratingLlmInput.chatMlMessages = [
+      ratingLlmPrompt,
+      `User: Here is a request and accompanying JSON response to evaluate:\n\n___\nREQUEST:\n___\n\n
+${initialInputMinusSystemMsg}\n\n___\nJSON RESPONSE:\n___\n\n
+${JSON.stringify(improvedSampleJson)}`,
+    ];
+    const ratingStr = await this.getTextLlmString(ratingLlmInput, temperature);
+    // use regex to get rating
+    let rating: number | null = null;
+    try {
+      const match = ratingStr
+        .replaceAll("/10", "")
+        .replaceAll("of 10", "")
+        .match(/(\d+(\.\d+)?)/g);
+      if (match && match.length) {
+        const lastMatch = match[match.length - 1];
+        rating = parseFloat(lastMatch);
+      }
+    } catch (e) {
+      throw new Error(
+        `Warning: error parsing numerical rating (1.0 - 10.0) from llm output: ${ratingStr}.\nError: ${(
+          e as Error
+        ).toString()}`
+      );
+    }
+    if (!rating || rating < 1 || rating > 10) {
+      throw new Error(
+        `Warning: failed to parse numerical rating (1.0 - 10.0) from llm output: ${ratingStr}\n`
+      );
+    }
+    return { output: improvedSampleJson, rating: rating };
+  }
+
+  /**
+   * Uses the llm to generate the `data.requestedOutputFields` and validates it with another llm.
+   */
+  async getTextLlmJson(
+    data: TextLlmInput,
+    temperature?: number
+  ): Promise<JsonObj> {
+    if (!temperature) temperature = 0.7;
     let firstOutput = "";
     let secondOutput = "";
     let parsedJson: JsonObj = {};
     try {
       // get response or error
-      firstOutput = await this.getTextLlmString(data);
+      firstOutput = await this.getTextLlmString(data, temperature);
 
       if (!firstOutput) {
         throw new Error("No output received from first llm call");
@@ -378,25 +553,27 @@ class RunningTask {
       // run first output through the llm to fix formatting
       const secondPrompt =
         "System: You are a highly logical, careful, and thorough JSON input/output machine. You can only output properly formatted \
-        JSON, and nothing else. Your output is a JSON object, meaning: it is wrapped with curly braces; field names are strings \
-        wrapped with double quotes; field values are either string, number, boolean, array, null, or JSON object; there is no added \
-        explanation text, comments, or readability formatting (like using ``` ... ``` to 'code fence' blocks of code, or **...** to \
-        bold text, or line breaks and indentation between JSON fields).\
-        \n Obviously, you are capable of producing readability formatting within your output fields -- if, for example, the field is \
-        supposed to generate a string containing markdown or HTML -- but you do not put unexpected formatting in fields that call for \
-        code/text/JSON/array/summary/etc., nor do you add formatting between fields.\
-        \n Your top priority is to ensure that your output is fully string-escaped and otherwise properly formatted so as to be \
-        parseable by the JSON.parse() function. If one were to call JSON.parse(yourOutputString), it should return a valid object, \
-        beginning and ending with curly braces.\
-        \n Whenever the user gives you a json input, you validate it and return a better formatted version of it, if possible, to make \
-        sure it can be parsed by JSON.parse().";
+JSON, and nothing else. Your output is a JSON object, meaning: it is wrapped with curly braces; field names are strings \
+wrapped with double quotes; field values are either string, number, boolean, array, null, or JSON object; there is no added \
+explanation text, comments, or readability formatting (like using ``` ... ``` to 'code fence' blocks of code, or **...** to \
+bold text, or line breaks and indentation between JSON fields).\
+\n Obviously, you are capable of producing readability formatting within your output fields -- if, for example, the field is \
+supposed to generate a string containing markdown or HTML -- but you do not put unexpected formatting in fields that call for \
+code/text/JSON/array/summary/etc., nor do you add formatting between fields. If you output anything other than a valid and expertly \
+formatted JSON object, then a real man living in Orange County will die because of even the slightest error.\
+\n Your top priority is to ensure that your output is fully string-escaped and otherwise properly formatted so as to be \
+parseable by the JSON.parse() function. If one were to call JSON.parse(yourOutputString), it should return a valid object, \
+beginning and ending with curly braces.\
+\n Whenever the user gives you a json input, you validate it and return a better formatted version of it, if possible, to make \
+sure it can be parsed by JSON.parse().\
+\n If the input is already formatted perfectly, then the output should be exactly the same as the input.";
       const secondLlmInput = assembleTextLlmInput({
         prompt: { t: firstOutput },
         expectedOutputFields: {},
         systemMessage: secondPrompt,
       });
       secondLlmInput.chatMlMessages = [secondPrompt, "User: " + firstOutput];
-      secondOutput = await this.getTextLlmString(secondLlmInput);
+      secondOutput = await this.getTextLlmString(secondLlmInput, temperature);
 
       // parse llm output
       secondOutput = secondOutput.trim();
@@ -423,21 +600,42 @@ class RunningTask {
       try {
         parsedJson = schema.jsonObj.parse(JSON.parse(secondOutput));
       } catch (error) {
-        parsedJson = schema.jsonObj.parse(JSON.parse(firstOutput));
+        // use another llm to fix formatting
+        const thirdPrompt =
+          "System: You are an expert at debugging problems. You give a short but very helpful explanation and \
+solution whenever you encounter a problem. You do not format your responses with markdown or HTML.";
+        const thirdLlmInput = assembleTextLlmInput({
+          prompt: { t: firstOutput },
+          expectedOutputFields: {},
+          systemMessage: thirdPrompt,
+        });
+        thirdLlmInput.chatMlMessages = [
+          thirdPrompt,
+          `User: There is an error parsing JSON using JSON.parse() in javascript. What do I need to change in the JSON to \
+fix this error, and where specifically is the problem located? The error is: ${(
+            error as Error
+          ).toString()}. The invalid JSON string is: ${firstOutput}`,
+        ];
+        const problemAndSolutionStr = await this.getTextLlmString(
+          thirdLlmInput,
+          temperature
+        );
+        const fourthLlmInput = assembleTextLlmInput({
+          prompt: { t: firstOutput, tt: problemAndSolutionStr },
+          expectedOutputFields: {},
+          systemMessage: secondPrompt,
+        });
+        thirdLlmInput.chatMlMessages = [
+          secondPrompt,
+          `User: There is a problem with an invalid json string: ${problemAndSolutionStr}. \nThe invalid JSON string is: ${firstOutput}`,
+        ];
+        const fourthOutput = await this.getTextLlmString(
+          fourthLlmInput,
+          temperature
+        );
+        parsedJson = schema.jsonObj.parse(JSON.parse(fourthOutput.trim()));
       }
 
-      // add example to list of training data to save later
-      this.unsavedTrainingData.push({
-        input: data.chatMlMessages,
-        output: JSON.stringify(parsedJson),
-        qualityRating: 0,
-      });
-
-      // check if the AI has requested to pause the task
-      if (parsedJson.pauseReason) {
-        this.setHelper("pauseReason", parsedJson.pauseReason);
-        this.setHelper("failedLlmOutput", JSON.stringify(parsedJson));
-      }
       return parsedJson;
     } catch (error) {
       const errMessage = `Failed to generate llm output: ${
@@ -446,13 +644,15 @@ class RunningTask {
         \n First output: ${firstOutput}
         \n Second output: ${secondOutput}
         \n Parsed JSON: ${JSON.stringify(parsedJson, null, 2)}`;
-      this.setHelper("pauseReason", errMessage);
       throw new Error(errMessage);
     }
   }
 
   // generates llm output
-  async getTextLlmString(data: TextLlmInput): Promise<string> {
+  async getTextLlmString(
+    data: TextLlmInput,
+    temperature: number
+  ): Promise<string> {
     // decide which model to use (20% chance to use GPT-4 when GPT-3.5 would suffice)
     const modelInfo =
       env.GPT4_ENABLED && (data.numInputTokens > 2000 || Math.random() < 0.2)
@@ -520,7 +720,7 @@ class RunningTask {
       model: modelInfo.id,
       messages,
       max_tokens: maxOutputTokens,
-      temperature: 0.7,
+      temperature: temperature,
     };
     let outputStr: string;
     try {

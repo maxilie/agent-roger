@@ -13,7 +13,7 @@ import { getNumTokens } from "../../model-input/index.js";
  *          i.e. "1-69: <content of lines 1-69, or a summary of it>"
  */
 
-const maxLlmWords = 1300;
+const maxLlmWords = 800;
 const maxLineWords = maxLlmWords / 10;
 const maxWordChars = 150;
 const chunkSize = maxLlmWords / 6;
