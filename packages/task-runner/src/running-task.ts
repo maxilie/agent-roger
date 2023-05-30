@@ -380,10 +380,10 @@ class RunningTask {
     let bestRating = -1;
     for (const result of results) {
       if (result.status === "rejected") {
-        console.log(
-          "failed to generate a sample & rating from the llm: ",
-          result.reason
-        );
+        // console.log(
+        //   "failed to generate a sample & rating from the llm: ",
+        //   result.reason
+        // );
         continue;
       }
       const output = result.value.output;
@@ -641,13 +641,15 @@ fix this error, and where specifically is the problem located? The error is: ${(
 
       return parsedJson;
     } catch (error) {
-      const errMessage = `Failed to generate llm output: ${
-        (error as Error).name
-      }: ${(error as Error).message}. 
-        \n First output: ${firstOutput}
-        \n Second output: ${secondOutput}
-        \n Parsed JSON: ${JSON.stringify(parsedJson, null, 2)}`;
-      throw new Error(errMessage);
+      // const errMessage = `Failed to generate llm output: ${
+      //   (error as Error).name
+      // }: ${(error as Error).message}.
+      //   \n First output: ${firstOutput}
+      //   \n Second output: ${secondOutput}
+      //   \n Parsed JSON: ${JSON.stringify(parsedJson, null, 2)}`;
+      throw new Error(
+        `Failed to generate llm json: ${(error as Error).toString()}`
+      );
     }
   }
 
@@ -657,9 +659,9 @@ fix this error, and where specifically is the problem located? The error is: ${(
     temperature: number
   ): Promise<string> {
     temperature = parseFloat(temperature.toFixed(2));
-    // decide which model to use (20% chance to use GPT-4 when GPT-3.5 would suffice)
+    // decide which model to use (40% chance to use GPT-4 when GPT-3.5 would suffice)
     const modelInfo =
-      env.GPT4_ENABLED && (data.numInputTokens > 2000 || Math.random() < 0.2)
+      env.GPT4_ENABLED && (data.numInputTokens > 2000 || Math.random() < 0.4)
         ? AI_MODELS.gpt4
         : AI_MODELS.gpt35Turbo;
     const modelMaxTokens = modelInfo.maxTokens;
@@ -684,93 +686,82 @@ fix this error, and where specifically is the problem located? The error is: ${(
     }
 
     // wait for rate-limiting
-    const maxRetries = 60;
+    const maxRetries = 400;
     let retries = 0;
-    while (
-      retries <= maxRetries &&
-      this.rateLimiter.willLimitBeReached(data.numInputTokens, modelInfo)
-    ) {
-      await new Promise((resolve) =>
-        setTimeout(resolve, 2 + Math.random() * 20)
-      );
-      retries += 1;
-    }
-    if (retries >= maxRetries) {
-      console.error(
-        "COULD NOT SEND OPENAI INFERENCE REQUEST BECAUSE OF RATE-LIMITING. Input: ",
-        data.chatMlMessages
-      );
-      return "";
-    }
-
-    // format input for OpenAI
-    const messages: Array<ChatCompletionRequestMessage> =
-      data.chatMlMessages.map((msg) => {
-        const msgParts = msg.split(":");
-        const roleStr = msgParts[0].trim().toLowerCase();
-        const isSystem = roleStr == "system";
-        const isAssistant =
-          roleStr == "assistant" || roleStr == "model" || roleStr == "ai";
-        return {
-          role: isSystem ? "system" : isAssistant ? "assistant" : "user",
-          content: msgParts.slice(1).join(":").trim(),
-          ...(!isSystem && !isAssistant ? { name: roleStr } : {}),
-        };
-      });
-
-    // call OpenAI
-    const openai = new OpenAIApi(
-      new OpenAIConfiguration({ apiKey: env.OPENAI_API_KEY })
-    );
-    // see CreateChatCompletionRequest: https://github.com/openai/openai-node/blob/master/api.ts
-    const requestConfig: CreateChatCompletionRequest = {
-      model: modelInfo.id,
-      messages,
-      max_tokens: maxOutputTokens,
-      temperature: temperature,
-    };
-    let outputStr: string;
-    try {
-      // see: https://platform.openai.com/docs/api-reference/chat/create?lang=node.js
-      const response = await openai.createChatCompletion(requestConfig);
-      if (response.status != 200)
+    while (true) {
+      if (retries >= maxRetries) {
         throw new Error(
-          "Error response from OpenAI: " + JSON.stringify(response, null, 2)
-        );
-      outputStr = response.data.choices[0].message?.content ?? "";
-      if (!outputStr || outputStr.length == 0) {
-        throw new Error(
-          "OpenAI returned an invalid response: " +
-            JSON.stringify(response, null, 2)
+          "COULD NOT SEND OPENAI INFERENCE REQUEST BECAUSE OF RATE-LIMITING."
         );
       }
-      return outputStr;
-    } catch (err) {
-      console.error(
-        "Failed to call OpenAI chat completion endpoint with request: ",
-        requestConfig
-      );
-      try {
-        const errMessage = JSON.stringify(
-          (err as { response: { data: { error: unknown } } }).response.data
-            .error as string
+      if (this.rateLimiter.willLimitBeReached(data.numInputTokens, modelInfo)) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, 10 + Math.random() * 30)
         );
-        console.error("Details: ", errMessage);
+        retries += 1;
+        continue;
+      }
+      // format input for OpenAI
+      const messages: Array<ChatCompletionRequestMessage> =
+        data.chatMlMessages.map((msg) => {
+          const msgParts = msg.split(":");
+          const roleStr = msgParts[0].trim().toLowerCase();
+          const isSystem = roleStr == "system";
+          const isAssistant =
+            roleStr == "assistant" || roleStr == "model" || roleStr == "ai";
+          return {
+            role: isSystem ? "system" : isAssistant ? "assistant" : "user",
+            content: msgParts.slice(1).join(":").trim(),
+            ...(!isSystem && !isAssistant ? { name: roleStr } : {}),
+          };
+        });
 
-        throw new Error(`"Failed to call OpenAI chat completion endpoint with request: ${JSON.stringify(
-          requestConfig,
-          null,
-          2
-        )}\n 
-        Error: ${errMessage}`);
-      } catch (_) {
-        console.error("Details: ", err);
-        throw new Error(`"Failed to call OpenAI chat completion endpoint with request: ${JSON.stringify(
-          requestConfig,
-          null,
-          2
-        )}\n 
-        Error: ${String(err)}`);
+      // call OpenAI
+      const openai = new OpenAIApi(
+        new OpenAIConfiguration({ apiKey: env.OPENAI_API_KEY })
+      );
+      // see CreateChatCompletionRequest: https://github.com/openai/openai-node/blob/master/api.ts
+      const requestConfig: CreateChatCompletionRequest = {
+        model: modelInfo.id,
+        messages,
+        max_tokens: maxOutputTokens,
+        temperature: temperature,
+      };
+      let outputStr: string;
+      try {
+        // see: https://platform.openai.com/docs/api-reference/chat/create?lang=node.js
+        const response = await openai.createChatCompletion(requestConfig);
+        outputStr = response.data.choices[0].message?.content ?? "";
+        return outputStr;
+      } catch (err) {
+        try {
+          const openAiResponse = (
+            err as {
+              response: {
+                data: { error: { message: string } };
+                status: number;
+                statusText: string;
+              };
+            }
+          ).response;
+          if (openAiResponse.status == 429) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, 30 + Math.random() * 60)
+            );
+            retries += 1;
+            continue;
+          }
+          const openAiErrMsg = `Failed to call OpenAI chat completion endpoint (l3). Error code: ${openAiResponse.status}.    GENERAL \
+ERROR MESSAGE: ""${openAiResponse.statusText}""    SPECIFIC ERROR MESSAGE: ""${openAiResponse.data.error.message}.""`;
+          console.error(openAiErrMsg);
+          throw new Error(openAiErrMsg);
+        } catch (_) {
+          throw new Error(
+            `Failed to call OpenAI chat completion endpoint (l2): ${String(
+              err
+            )}`
+          );
+        }
       }
     }
   }

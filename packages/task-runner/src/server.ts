@@ -182,7 +182,6 @@ const processTask = async (taskID: number): Promise<void> => {
     rateLimiter
   );
   if (runningTaskIDs.has(+taskID)) return;
-  console.log("adding runningTaskID #" + String(taskID));
   runningTaskIDs.add(+taskID);
   const cleanupFn = runningTask.cleanup.bind(runningTask);
   runningTaskCleanupFns.push(cleanupFn);
