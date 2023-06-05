@@ -38,7 +38,7 @@ export type SuggestedApproaches = {
 };
 
 export const SUGGESTED_APPROACHES: { [key: string]: SuggestedApproaches[] } = {
-  generateStepsAndSuccessCriteria:
+  generateInitialSteps:
     // common patterns for breaking down a complex instruction into several less-complex instructions.
     [
       // make changes to a project

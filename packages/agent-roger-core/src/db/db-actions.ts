@@ -1194,7 +1194,9 @@ export const restartTaskTree = async (
         throw new Error(
           `Failed to find the sub-task generation stage in the task definition for task #${String(
             nextAncestor.taskID
-          )}. Stage presets: ${String(
+          )}. \
+If you are using a custom task definition for the abstract task preset, ensure one of its stages is named "generateSubTasks". \
+Invalid stage presets provided in task definition: ${String(
             nextAncestor?.taskDefinition?.stagePresets
           )}.`
         );
@@ -1204,14 +1206,16 @@ export const restartTaskTree = async (
         stageN: genSubTasksStageIdx,
       });
       if (!genSubTasksStageData) {
+        // parent task is missing stage data that it should have created when it spawned sub-tasks
         throw new Error(
           `Failed to get stage data for the sub-task generation stage in the task definition for task #${String(
             nextAncestor.taskID
           )}. Stage index: ${genSubTasksStageIdx}`
         );
       }
-      const tasksStepsDataParse =
-        taskStepsDataSchema.safeParse(genSubTasksStageData);
+      const tasksStepsDataParse = taskStepsDataSchema.safeParse(
+        genSubTasksStageData?.fields?.stepsData
+      );
       if (!tasksStepsDataParse.success) {
         throw new Error(
           `Failed to parse steps data from the sub-task generation stage data of task #${String(
@@ -1241,15 +1245,17 @@ export const restartTaskTree = async (
       // work backward to find all steps that depend on the previous dependencies, and mark their tasks as roots of trees to kill
       let dependencyStepIndices: number[] = [Number(firstDependencyStepIdxStr)];
       while (dependencyStepIndices.length) {
-        // get dependents from dependencies
+        // get dependents (steps that require dependency steps to finish) from previous dependencies
         const dependentStepIndices: number[] = [];
         for (const dependentIdxStr of Object.keys(
-          tasksStepsData.stepIdxToDependencyStepIdx
+          tasksStepsData.stepIdxToDependencyStepIndices
         )) {
-          if (
-            tasksStepsData.stepIdxToDependencyStepIdx[dependentIdxStr] in
-            dependencyStepIndices
-          ) {
+          const dependentStepsDependencies =
+            tasksStepsData.stepIdxToDependencyStepIndices[dependentIdxStr];
+          const stepDependsOnPreviousDependencies = dependencyStepIndices.some(
+            (idx) => dependentStepsDependencies.includes(idx)
+          );
+          if (stepDependsOnPreviousDependencies) {
             dependentStepIndices.push(Number(dependentIdxStr));
           }
         }

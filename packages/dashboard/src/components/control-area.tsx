@@ -390,7 +390,7 @@ export const ControlArea = (
           className="flex flex-row text-sm text-gray-300 hover:text-white"
         >
           <ArrowLeftCircle className="my-auto mr-2 h-4 w-4" />
-          <p className="my-auto">Manage Training Data</p>
+          <p className="my-auto">Manage Prompt Data</p>
         </button>
         <UserButton />
       </div>

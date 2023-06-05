@@ -31,7 +31,7 @@ export const subTasksSpawnedSchema = z
 export type SubTasksSpawned = z.infer<typeof subTasksSpawnedSchema>;
 export const taskStepsDataSchema = z.object({
   stepIdxToDescription: z.record(z.string()).default({}),
-  stepIdxToDependencyStepIdx: z.record(z.number()).default({}),
+  stepIdxToDependencyStepIndices: z.record(z.array(z.number())).default({}),
   stepIdxToTaskDefinition: z
     .record(
       z.object({

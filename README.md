@@ -205,6 +205,8 @@ NOTE: We use yarn workspaces to configure the monorepo. You might need a Yarn "E
 
 # Miscellaneous
 
-The dashboard visualizer does not work with Brave browser's shields enabled (specifically, the "block fingerprinting" option disables click functionality for the dashboard's force graph).
+The dashboard visualizer does not work with Brave browser's shields enabled:
+
+- Specifically, the "block fingerprinting" option disables click functionality for the dashboard's force graph.
 
 If docker fails to build, you may need to disable buildkit in your docker engine settings.

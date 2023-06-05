@@ -365,14 +365,14 @@ class RunningTask {
    */
   async textLlmHelper(data: TextLlmInput): Promise<JsonObj> {
     const numHighTempSamples = 2;
-    const numLowTempSamples = 1;
+    const numLowTempSamples = 5;
     // concurrently process multiple samples with different temperatures
     const promises = [];
     for (let i = 0; i < numHighTempSamples; i++) {
-      promises.push(this.generateAndRateLlmSample(data, 0.68, 0.78));
+      promises.push(this.generateAndRateLlmSample(data, 0.65, 0.75));
     }
     for (let i = 0; i < numLowTempSamples; i++) {
-      promises.push(this.generateAndRateLlmSample(data, 0.55, 0.65));
+      promises.push(this.generateAndRateLlmSample(data, 0.48, 0.58));
     }
     const results = await Promise.allSettled(promises);
     // get highest-rated sample
@@ -694,7 +694,12 @@ fix this error, and where specifically is the problem located? The error is: ${(
           "COULD NOT SEND OPENAI INFERENCE REQUEST BECAUSE OF RATE-LIMITING."
         );
       }
-      if (this.rateLimiter.willLimitBeReached(data.numInputTokens, modelInfo)) {
+      if (
+        this.rateLimiter.willLimitBeReached(
+          data.numInputTokens + maxOutputTokens * 0.8,
+          modelInfo
+        )
+      ) {
         await new Promise((resolve) =>
           setTimeout(resolve, 10 + Math.random() * 30)
         );

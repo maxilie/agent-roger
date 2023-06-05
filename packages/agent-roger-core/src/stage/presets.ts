@@ -34,8 +34,10 @@ const TASK_PRESETS: { [key: string]: TaskDefinition } = {
     stagePresets: [
       // see: /src/stage/task-abstract/index.ts
       "observeTaskHistory",
-      "generateStepsAndSuccessCriteria",
+      "generateInitialSteps",
       "expandStepInstructions",
+      "generateStepDependencies",
+      "generateSuccessCriteria",
       "generateSubTasks",
       "summarizeSubTaskOutputs",
       "validateOutput",
