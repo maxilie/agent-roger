@@ -25,11 +25,9 @@ export const textLlmInputSchema = z.object({
 
 export type TextLlmInput = z.infer<typeof textLlmInputSchema>;
 
-// TODO Add parameter for availableTaskPresets. For each one, add a description of when to use it to the prompt.
 /**
  *
  * @param systemMessage a system message beginning with "System: ...", or leave blank to use the default
- * @param exampleMessages start each message with "User: ..." / "Assistant: ...", or it will default to "User: ..."
  * @param prompt context fields and input fields
  * @param expectedOutputFields name and description of each output field to generate
  * @param maxOutputTokens maximum number of tokens to generate; defaults to (maxTokens - numInputTokens)

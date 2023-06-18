@@ -48,10 +48,3 @@ export const taskStepsDataSchema = z.object({
   stepIdxToOutputSummary: z.record(z.string()).default({}),
 });
 export type TasksStepsData = z.infer<typeof taskStepsDataSchema>;
-
-export type VectorDbDocument = {
-  uuid: string;
-  content: string;
-  location: string;
-  timeString?: string;
-};

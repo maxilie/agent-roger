@@ -15,8 +15,9 @@ import {
   Loader2,
   PauseCircle,
   XSquare,
+  ZoomIn,
 } from "lucide-react";
-import { useState, type FC, useReducer, useEffect } from "react";
+import { useState, type FC, useReducer, useEffect, useCallback } from "react";
 import { Button } from "~/components/ui/button";
 import {
   JsonObj,
@@ -28,6 +29,7 @@ import {
   schema,
 } from "agent-roger-core";
 import { z } from "zod";
+import { DATA_BANKS } from "./prompts-modal";
 
 export type SelectedTaskProps = {
   // task definition
@@ -144,7 +146,7 @@ const formatJsonField = (str: string) => {
 
 const formatResultDataField = (str: string) => {
   try {
-    const valAsObject = schema.resultData.parse(JSON.parse(str));
+    const valAsObject = schema.task.resultData.parse(JSON.parse(str));
     return JSON.stringify(valAsObject, null, 2);
   } catch (ignored) {
     return null;
@@ -153,7 +155,7 @@ const formatResultDataField = (str: string) => {
 
 const formatRuntimeErrorsField = (str: string) => {
   try {
-    const valAsObject = schema.runtimeErrors.parse(JSON.parse(str));
+    const valAsObject = schema.task.runtimeErrors.parse(JSON.parse(str));
     return JSON.stringify(valAsObject, null, 2);
   } catch (ignored) {
     return null;
@@ -162,7 +164,7 @@ const formatRuntimeErrorsField = (str: string) => {
 
 const formatStageDataField = (str: string) => {
   try {
-    const valAsObject = schema.stageData.parse(JSON.parse(str));
+    const valAsObject = schema.task.stageData.parse(JSON.parse(str));
     return JSON.stringify(valAsObject, null, 2);
   } catch (ignored) {
     return null;
@@ -181,7 +183,7 @@ const isJsonInvalid = (input: string | null) => {
 const isResultDataInvalid = (input: string | null) => {
   if (!input && !input?.trim().length) return false;
   try {
-    return !schema.resultData.safeParse(JSON.parse(input)).success;
+    return !schema.task.resultData.safeParse(JSON.parse(input)).success;
   } catch (ignored) {
     return true;
   }
@@ -190,7 +192,7 @@ const isResultDataInvalid = (input: string | null) => {
 const isRuntimeErrorsInvalid = (input: string | null) => {
   if (!input && !input?.trim().length) return false;
   try {
-    return !schema.runtimeErrors.safeParse(JSON.parse(input)).success;
+    return !schema.task.runtimeErrors.safeParse(JSON.parse(input)).success;
   } catch (ignored) {
     return true;
   }
@@ -199,7 +201,7 @@ const isRuntimeErrorsInvalid = (input: string | null) => {
 const isStageDataInvalid = (input: string | null) => {
   if (!input && !input?.trim().length) return false;
   try {
-    return !schema.stageData.safeParse(JSON.parse(input)).success;
+    return !schema.task.stageData.safeParse(JSON.parse(input)).success;
   } catch (ignored) {
     return true;
   }
@@ -227,7 +229,7 @@ const parseResultDataStr = (input: string): ResultData | undefined => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const rawJson = JSON.parse(input);
-    return schema.resultData.parse(rawJson);
+    return schema.task.resultData.parse(rawJson);
   } catch (ignored) {
     return undefined;
   }
@@ -236,7 +238,7 @@ const parseRuntimeErrorsStr = (input: string): RuntimeErrors | undefined => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const rawJson = JSON.parse(input);
-    return schema.runtimeErrors.parse(rawJson);
+    return schema.task.runtimeErrors.parse(rawJson);
   } catch (ignored) {
     return undefined;
   }
@@ -246,7 +248,7 @@ const parseStageDataStr = (input: string): StageData | undefined => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const rawJson = JSON.parse(input);
-    return schema.stageData.parse(rawJson);
+    return schema.task.stageData.parse(rawJson);
   } catch (ignored) {
     return undefined;
   }
@@ -349,7 +351,7 @@ const SaveFieldBtn = (props: {
   );
 };
 
-export const ControlArea = (
+export const MainControlArea = (
   props: {
     rootTaskIDs: number[];
     selectedRootTaskID: number | undefined;
@@ -369,49 +371,60 @@ export const ControlArea = (
     pauseDescendentsFn: () => Promise<void>;
     unpauseFn: () => Promise<void>;
     unpauseDescendentsFn: () => Promise<void>;
+    // prompt explorer props
+    setShowingPromptsModal: (val: boolean) => void;
+    selectedDataBank: (typeof DATA_BANKS)[number];
+    selectDataBankFn: (dataBank: string) => void;
+    selectedHistoricalPromptsTaskID: number | null;
+    setSelectedHistoricalPromptsTaskID: (taskID: number | null) => void;
   } & SelectedTaskProps
 ) => {
-  const router = useRouter();
   const [creatingNewTask, toggleCreatingNewTask] = useReducer(
     (val) => !val,
     false
   );
 
-  const handleManageTrainingData = () => {
-    router.push("/training-data").catch((err) => console.error(err));
+  const openPromptHistory = () => {
+    props.setShowingPromptsModal(true);
+    props.selectDataBankFn("task-prompt-history");
+    props.setSelectedHistoricalPromptsTaskID(props.taskID);
   };
 
   return (
-    <div className="float-left block overflow-hidden bg-gray-900 p-4 md:h-full md:w-1/3 md:border-r md:border-slate-800">
+    <div className="z-10 float-left block overflow-hidden bg-gray-900 px-4 pb-4 shadow-md shadow-white md:h-full md:w-1/3 md:border-r md:border-slate-800">
       {/* Mini header */}
-      <div className="mb-4 flex justify-between">
-        <button
-          onClick={handleManageTrainingData}
-          className="flex flex-row text-sm text-gray-300 hover:text-white"
-        >
-          <ArrowLeftCircle className="my-auto mr-2 h-4 w-4" />
-          <p className="my-auto">Manage Prompt Data</p>
-        </button>
+      <div className="mb-8 mt-6 flex justify-between border-b border-slate-800 pb-10">
         <UserButton />
+        <button
+          onClick={() => props.setShowingPromptsModal(true)}
+          className="flex flex-row text-lg text-gray-200 hover:animate-pulse hover:text-white"
+        >
+          <p className="my-auto">Manage Prompt Data</p>
+          <ZoomIn className="my-auto ml-2 h-8 w-8" />
+        </button>
       </div>
       <div className="flex h-full flex-col overflow-y-auto scrollbar-none">
         {/* Root Task dropdown */}
-        <label htmlFor="rootTask" className="mb-2 text-sm text-gray-300">
-          Root Task
-        </label>
-        <select
-          id="rootTask"
-          className="mb-4 w-full rounded bg-gray-700 p-2 text-white"
-          value={props.selectedRootTaskID}
-          onChange={(e) => props.setSelectedRootTaskID(+e.target.value)}
-        >
-          <option value="">Select a task</option>
-          {props.rootTaskIDs.map((id) => (
-            <option key={id} value={id}>
-              {id}
-            </option>
-          ))}
-        </select>
+        {!creatingNewTask && (
+          <>
+            <label htmlFor="rootTask" className="mb-2 text-sm text-gray-300">
+              Root Task
+            </label>
+            <select
+              id="rootTask"
+              className="mb-4 w-full rounded bg-gray-700 p-2 text-white"
+              value={props.selectedRootTaskID}
+              onChange={(e) => props.setSelectedRootTaskID(+e.target.value)}
+            >
+              <option value="">Select a task</option>
+              {props.rootTaskIDs.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
 
         {/* Create task button  */}
         {!creatingNewTask && (
@@ -424,10 +437,14 @@ export const ControlArea = (
         )}
 
         {/* CreateNewTask or SelectedTask */}
-        <div className="mt-10">
-          <>
-            {!creatingNewTask && props.taskID && (
+        <>
+          {!creatingNewTask && props.taskID && (
+            <>
+              <label className="mb-2 mt-10 text-sm text-gray-300">
+                Selected Task
+              </label>
               <SelectedTask
+                openPromptHistory={openPromptHistory}
                 saveTaskFn={props.saveTaskFn}
                 isSaving={props.isSaving}
                 isPausing={props.isPausing}
@@ -528,15 +545,15 @@ export const ControlArea = (
                 loadStage23={props.loadStage23}
                 isLoadingStage23={props.isLoadingStage23}
               />
-            )}
-            {creatingNewTask && (
-              <CreateNewTask
-                createNewTaskFn={props.createNewTaskFn}
-                cancelFn={toggleCreatingNewTask}
-              />
-            )}
-          </>
-        </div>
+            </>
+          )}
+          {creatingNewTask && (
+            <CreateNewTask
+              createNewTaskFn={props.createNewTaskFn}
+              cancelFn={toggleCreatingNewTask}
+            />
+          )}
+        </>
       </div>
     </div>
   );
@@ -577,7 +594,7 @@ const CreateNewTask: FC<{
   };
 
   return (
-    <div className="rounded bg-gray-800 p-4">
+    <div className="mb-44 rounded bg-gray-800 p-4">
       <button
         onClick={props.cancelFn}
         className="ml-auto block text-gray-300 hover:text-white"
@@ -656,7 +673,7 @@ const CreateNewTask: FC<{
           }}
         />
       </div>
-      <div className="mb-8 mt-8">
+      <div className="mt-8">
         <div className="mb-3 flex justify-between">
           <div className="my-auto flex w-7/12 flex-col justify-around">
             <label className="mb-1 block text-sm text-gray-300">
@@ -670,7 +687,7 @@ const CreateNewTask: FC<{
           onChange={(e) => setInitialContextSummary(e.target.value)}
         />
       </div>
-      <div className="mb-12 flex justify-end">
+      <div className="mb-8 mt-8 flex justify-end">
         <Button
           variant={"red"}
           onClick={props.cancelFn}
@@ -704,6 +721,7 @@ const SelectedTask: FC<
     pauseDescendentsFn: () => Promise<void>;
     unpauseFn: () => Promise<void>;
     unpauseDescendentsFn: () => Promise<void>;
+    openPromptHistory: () => void;
   } & SelectedTaskProps
 > = (props) => {
   // state vars for editable fields
@@ -1022,21 +1040,15 @@ const SelectedTask: FC<
   };
 
   return (
-    <div className="flex flex-col">
+    <div className="mb-20 flex flex-col">
       <div className="rounded bg-gray-800 p-4">
-        <div className="mt-3 text-center">
-          <h2 className="mx-2 mb-4 bg-gray-900 p-6 text-xl font-semibold text-blue-50">
-            {taskTitle}
-          </h2>
-          <p className="text-md text-gray-300">{props.taskType}</p>
-        </div>
-
         {/* top area */}
-        <div className="mb-4 flex items-center justify-between align-middle">
-          {/* id and date */}
+        <div className="flex items-center justify-between align-middle">
+          {/* id, type, and date */}
           <div className="mb-3 mt-3 flex flex-col">
+            <p className="text-md mb-1 text-gray-200">{props.taskType}</p>
             <div className="mb-1 flex flex-row align-middle">
-              <p className="text-sm text-gray-50">#</p>
+              <p className="text-sm text-gray-200">#</p>
               <p className="ml-1 text-sm text-gray-200">{props.taskID}</p>
             </div>
             <p className="align-text-bottom text-sm text-gray-200">
@@ -1050,6 +1062,19 @@ const SelectedTask: FC<
             <p className="text-md ml-2 text-zinc-200">{status}</p>
           </div>
         </div>
+
+        <div className="mt-4 text-center">
+          <h2 className="mx-2 bg-gray-900 p-6 text-xl font-semibold text-slate-50/80">
+            {taskTitle}
+          </h2>
+        </div>
+        <button
+          onClick={props.openPromptHistory}
+          className="mx-auto mb-12 mt-10 flex flex-row font-mono text-xl text-gray-100 underline hover:animate-pulse hover:text-white"
+        >
+          <p className="my-auto">Prompt History</p>
+          <ZoomIn className="my-auto ml-2 h-8 w-8" />
+        </button>
 
         {/* pause/resume buttons */}
         {!props.dead && (

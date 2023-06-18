@@ -199,6 +199,9 @@ const ForceGraph = (props) => {
         selectSubtree(node);
         props.setSelectedTaskID(node.id);
       }}
+      onNodeRightClick={(node) => {
+        props.openPromptHistory(node.id);
+      }}
     />
   );
 };

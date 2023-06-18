@@ -41,3 +41,10 @@ export const AI_MODELS: { [modelName: string]: AiModel } = {
     },
   },
 };
+
+export const TRAINING_DATA_TAGS = [
+  "training-pair-1x",
+  "training-pair-2x",
+  "training-pair-3x",
+  "training-pair-4x",
+];

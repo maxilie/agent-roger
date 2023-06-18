@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { db, schema } from "agent-roger-core";
+import { eq } from "drizzle-orm";
 
 export const tasksRouter = createTRPCRouter({
   // returns N most recently updated root nodes
@@ -122,29 +123,211 @@ export const tasksRouter = createTRPCRouter({
         await db.unpauseTaskTree(input, neo4jDriver);
       });
     }),
+
+  // gets a training data example
+  getTrainingData: protectedProcedure
+    .input(z.object({ id: z.number().nullish() }))
+    .output(schema.trainingDataExample.nullable())
+    .query(async ({ input }) => {
+      if (input?.id == null) return null;
+      return await db.getTrainingDataExample(input as { id: number });
+    }),
+
+  // gets an injected prompt
+  getInjectedPrompt: protectedProcedure
+    .input(z.object({ id: z.number().nullish() }))
+    .output(schema.injectedPrompt.nullable())
+    .query(async ({ input }) => {
+      if (input?.id == null) return null;
+      return await db.getInjectedPrompt(input as { id: number });
+    }),
+
+  // gets a historical AI call (input & output)
+  getHistoricalAiCall: protectedProcedure
+    .input(z.object({ id: z.number().nullish() }))
+    .output(schema.historicalAiCall.nullable())
+    .query(async ({ input }) => {
+      if (input?.id == null) return null;
+      return await db.getHistoricalAiCall(input as { id: number });
+    }),
+
+  // saves or creates a training data example
+  saveTrainingData: protectedProcedure
+    .input(
+      z.intersection(
+        z.object({ id: z.number().nullish() }),
+        schema.trainingDataExample
+      )
+    )
+    .mutation(async ({ input }) => {
+      await db.saveTrainingData(input);
+    }),
+
+  // saves or creates an injected prompt
+  saveInjectedPrompt: protectedProcedure
+    .input(
+      z.intersection(
+        z.object({ id: z.number().nullish() }),
+        schema.injectedPrompt
+      )
+    )
+    .mutation(async ({ input }) => {
+      await db.saveInjectedPrompt(input);
+    }),
+
+  // deletes a training data example
+  deleteTrainingDataExample: protectedProcedure
+    .input(z.object({ id: z.number().nullish() }))
+    .mutation(async ({ input }) => {
+      if (input?.id === null || input?.id === undefined) return;
+      await db.sqlClient
+        .delete(db.trainingData)
+        .where(eq(db.trainingData.id, input.id));
+    }),
+
+  // deletes an injected prompt
+  deleteInjectedPrompt: protectedProcedure
+    .input(z.object({ id: z.number().nullish() }))
+    .mutation(async ({ input }) => {
+      if (input?.id === null || input?.id === undefined) return;
+      await db.sqlClient
+        .delete(db.injectedPrompts)
+        .where(eq(db.injectedPrompts.id, input.id));
+    }),
+
+  // gets a batch of ids of injected prompts
+  getBatchInjectedPromptIDs: protectedProcedure
+    .input(
+      z.object({
+        N: z.number(),
+        startID: z.number().nullish(),
+        endID: z.number().nullish(),
+      })
+    )
+    .output(z.array(z.number()))
+    .query(async ({ input }) => {
+      return await db.getBatchInjectedPromptIDs(input);
+    }),
+
+  // gets a batch of task ids
+  getBatchRecentTaskIDs: protectedProcedure
+    .input(
+      z.object({
+        N: z.number(),
+        startTime: z.date().nullish(),
+        endTime: z.date().nullish(),
+      })
+    )
+    .output(
+      z.array(
+        z.object({
+          taskID: z.number(),
+          timeLastUpdated: z.date(),
+        })
+      )
+    )
+    .query(async ({ input }) => {
+      return await db.getBatchRecentTaskIDs(input);
+    }),
+
+  // gets a batch of ids of training data examples
+  getBatchTrainingDataIDs: protectedProcedure
+    .input(
+      z.object({
+        categoryTag: z.string(),
+        qualityRating: z.number().default(1),
+        N: z.number(),
+        startID: z.number().nullish(),
+        endID: z.number().nullish(),
+      })
+    )
+    .output(z.array(z.number()))
+    .query(async ({ input }) => {
+      return await db.getBatchTrainingDataIDs(input);
+    }),
+
+  // gets a batch of ids of a task's previous AI inputs & outputs
+  getBatchHistoricalAiCallIDs: protectedProcedure
+    .input(
+      z.object({
+        taskID: z.number().default(0),
+        N: z.number(),
+        startTime: z.date().nullish(),
+        endTime: z.date().nullish(),
+      })
+    )
+    .output(
+      z.array(
+        z.object({
+          id: z.number(),
+          timestamp: z.date(),
+        })
+      )
+    )
+    .query(async ({ input }) => {
+      if (input?.taskID === undefined || input?.taskID === null) {
+        return [];
+      }
+      return await db.getBatchHistoricalAiCallIDs(input);
+    }),
+
+  // delete task prompt history older than x seconds ago
+  deleteTaskPromptHistory: protectedProcedure
+    .input(z.object({ secondsAgo: z.number() }))
+    .mutation(async ({ input }) => {
+      await db.deletePromptHistory(input);
+    }),
+
+  // checks if data point data is present in injectedPrompts table (ignores null input)
+  isInjectedPromptPresent: protectedProcedure
+    .input(
+      z.object({
+        userMessage: z.string().nullish(),
+        assistantMessage: z.string().nullish(),
+      })
+    )
+    .output(z.boolean())
+    .query(async ({ input }) => {
+      if (
+        input.userMessage === null ||
+        input.userMessage === undefined ||
+        input.assistantMessage === null ||
+        input.assistantMessage === undefined
+      ) {
+        return false;
+      }
+      return await db.isInjectedPromptPresent(
+        input as { userMessage: string; assistantMessage: string }
+      );
+    }),
+
+  // checks if data point data is present in trainingData table (ignores null input)
+  isTrainingDataExamplePresent: protectedProcedure
+    .input(
+      z.object({
+        categoryTag: z.string().nullish(),
+        inputMessages: z.array(z.string()).nullish(),
+        outputMessage: z.string().nullish(),
+      })
+    )
+    .output(z.boolean())
+    .query(async ({ input }) => {
+      if (
+        input.categoryTag === null ||
+        input.categoryTag === undefined ||
+        input.inputMessages === null ||
+        input.inputMessages === undefined ||
+        input.outputMessage === null ||
+        input.outputMessage === undefined
+      ) {
+        return false;
+      }
+      return await db.isTrainingDataExamplePresent(
+        input as {
+          categoryTag: string;
+          inputMessages: string[];
+          outputMessage: string;
+        }
+      );
+    }),
 });
-
-/**
- * 
-
- * create root node
-CREATE (root_task:Task {taskID: 1})
-
-
- * create child nodes
-WITH [
-  {taskID: 14},
-  {taskID: 15}
-] AS sub_tasks
-MATCH (root_task:Task {taskID: 12})
-FOREACH (sub_task_props IN sub_tasks |
-  MERGE (sub_task:Task {taskID: sub_task_props.taskID})
-  MERGE (root_task)-[:SPAWNED]->(sub_task))
-
-
-  * mark as dead nodes with id in array of ids
-MATCH (n)
-WHERE n.taskID IN $taskIDs
-SET n.isDead = 'true'
-RETURN n
- */

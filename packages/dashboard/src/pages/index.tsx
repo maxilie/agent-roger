@@ -13,8 +13,7 @@ import {
   type TaskUpdateData,
 } from "agent-roger-core";
 
-import { Button } from "~/components/ui/button";
-import { CheckCircle, Loader2, Webhook } from "lucide-react";
+import { Loader2, Webhook } from "lucide-react";
 import {
   type SetStateAction,
   useCallback,
@@ -25,8 +24,8 @@ import {
 import { api } from "~/utils/api";
 import dynamic from "next/dynamic";
 import { z } from "zod";
-import { ControlArea, type SelectedTaskProps } from "~/components/control-area";
-import { InType_saveTaskData } from "agent-roger-core/dist/zod-schema";
+import { MainControlArea } from "~/components/main-control-area";
+import { PromptsModal, type DATA_BANKS } from "~/components/prompts-modal";
 const ForceGraph = dynamic(
   () => import("~/components/force-graph").then((component) => component),
   { ssr: false }
@@ -67,7 +66,7 @@ const getTaskType = (
   if (!taskData || !taskData.taskDefinition) return "Helper Sub-Task";
   let taskStagesStr = "";
   try {
-    taskStagesStr = schema.taskDefinition
+    taskStagesStr = schema.task.taskDefinition
       .parse(taskData.taskDefinition)
       .stagePresets.join(", ")
       .toLowerCase();
@@ -144,6 +143,7 @@ const useWindowDimensions = (): WindowDimentions => {
 
 const Dashboard: NextPage = () => {
   const trpcUtils = api.useContext();
+  // state vars for force graph & main controls
   const [selectedRootTaskID, setSelectedRootTaskID] = useState<
     number | undefined
   >(undefined);
@@ -152,10 +152,18 @@ const Dashboard: NextPage = () => {
   );
   const [nodes, setNodes] = useState<TaskNode[]>([]);
   const [links, setLinks] = useState<TaskLink[]>([]);
+  // state vars for error toast
   const [errorToastHeadline, setErrorToastHeadline] = useState<string>("");
   const [errorToastDetails1, setErrorToastDetails1] = useState<string>("");
   const [errorToastDetails2, setErrorToastDetails2] = useState<string>("");
   const [showingErrorToast, setShowingErrorToast] = useState<boolean>(false);
+  // state vars for prompts modal
+  const [showingPromptsModal, setShowingPromptsModal] =
+    useState<boolean>(false);
+  const [selectedDataBank, setSelectedDataBank] =
+    useState<(typeof DATA_BANKS)[number]>("Select a Data Bank");
+  const [selectedHistoricalPromptsTaskID, setSelectedHistoricalPromptsTaskID] =
+    useState<number | null>(null);
 
   // fetch root task ids
   const {
@@ -180,7 +188,8 @@ const Dashboard: NextPage = () => {
     rootTaskID: selectedRootTaskID,
   });
 
-  // It might be terrible for performance to stringify the entire task tree on every render
+  // it might be terrible for performance to stringify the entire task tree on every render...
+  // so far it seems to be fine though
   const selectedTaskTreeChecksum = JSON.stringify(selectedTaskTree ?? {});
 
   // build nodes and links
@@ -634,7 +643,7 @@ const Dashboard: NextPage = () => {
   const saveTaskFn = async (changedFields: TaskUpdateData) => {
     try {
       if (!selectedTask) return;
-      const newFields = schema.updateTask.parse(changedFields);
+      const newFields = schema.task.updateTask.parse(changedFields);
       const params = schema.input.saveTask.parse({
         taskID: selectedTask.taskID,
         newFields: newFields,
@@ -791,9 +800,21 @@ const Dashboard: NextPage = () => {
     setSelectedTaskID(undefined);
   };
 
+  const openPromptHistory = (taskID: number) => {
+    setShowingPromptsModal(true);
+    setSelectedDataBank("task-prompt-history");
+    setSelectedHistoricalPromptsTaskID(taskID);
+  };
+
   return (
     <div className="block h-screen w-full overflow-hidden">
-      <ControlArea
+      <MainControlArea
+        // prompt explorer props
+        setShowingPromptsModal={setShowingPromptsModal}
+        selectedDataBank={selectedDataBank}
+        selectDataBankFn={setSelectedDataBank}
+        selectedHistoricalPromptsTaskID={selectedHistoricalPromptsTaskID}
+        setSelectedHistoricalPromptsTaskID={setSelectedHistoricalPromptsTaskID}
         // other props
         rootTaskIDs={rootTaskIDs || []}
         selectedRootTaskID={selectedRootTaskID}
@@ -922,7 +943,19 @@ const Dashboard: NextPage = () => {
         setSelectedTaskID={
           setSelectedTaskIDCallback as (val: number | null) => void
         }
+        openPromptHistory={openPromptHistory}
       />
+      {showingPromptsModal && (
+        <PromptsModal
+          setShowingPromptsModal={setShowingPromptsModal}
+          selectedDataBank={selectedDataBank}
+          selectDataBankFn={setSelectedDataBank}
+          selectedHistoricalPromptsTaskID={selectedHistoricalPromptsTaskID}
+          setSelectedHistoricalPromptsTaskID={
+            setSelectedHistoricalPromptsTaskID
+          }
+        />
+      )}
     </div>
   );
 };
@@ -932,6 +965,7 @@ const GraphArea = (props: {
   nodes: TaskNode[];
   links: TaskLink[];
   setSelectedTaskID: (val: number | null) => void;
+  openPromptHistory: (taskID: number) => void;
 }) => {
   // get width and height px for the canvas
   const { windowWidth, windowHeight } = useWindowDimensions();
@@ -965,6 +999,7 @@ const GraphArea = (props: {
         width={canvasWidth}
         height={canvasHeight}
         setSelectedTaskID={handleSelectedTaskID}
+        openPromptHistory={props.openPromptHistory}
       />
     </div>
   );

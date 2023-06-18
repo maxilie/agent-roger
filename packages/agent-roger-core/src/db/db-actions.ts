@@ -1,7 +1,24 @@
 import { connection, sqlClient } from "./sql-client.js";
-import { tasks, trainingData } from "./sql-schema.js";
+import {
+  injectedPrompts,
+  newInjectedPrompts,
+  taskPromptHistory,
+  tasks,
+  trainingData,
+} from "./sql-schema.js";
 import { env } from "../env.mjs";
-import { desc, isNull, eq, inArray, and } from "drizzle-orm";
+import {
+  desc,
+  isNull,
+  eq,
+  inArray,
+  and,
+  lte,
+  gte,
+  asc,
+  lt,
+  or,
+} from "drizzle-orm";
 import * as neo4j from "neo4j-driver";
 import { REDIS_TASK_QUEUE, type RedisManager } from "./redis.js";
 import * as crypto from "crypto";
@@ -30,6 +47,10 @@ import {
   type OutType_getTaskTree,
   type StageData,
   type TrainingDataExample,
+  type InjectedPrompt,
+  type HistoricalAiCall,
+  historicalAiCallSchema,
+  trainingDataExampleSchema,
 } from "../zod-schema/index.js";
 import {
   type TasksStepsData,
@@ -37,6 +58,7 @@ import {
   taskStepsDataSchema,
 } from "../zod-schema/stage-base/index.js";
 import { jsonObjSchema } from "../zod-schema/stage-base/json.js";
+import { injectedPromptSchema } from "../zod-schema/index.js";
 
 /**
  *
@@ -896,6 +918,7 @@ export const unpauseTask = async (
  *
  *
  */
+
 export const pauseTaskTree = async (
   input: InType_deleteTaskTree,
   neo4jDriver: neo4j.Driver
@@ -1561,6 +1584,21 @@ Invalid stage presets provided in task definition: ${String(
   }
 };
 
+// helper function
+const removeChatMlRolePrefix = (message: string): string => {
+  const messageStart = message.slice(0, 10);
+  const openBraceLocation = messageStart.indexOf("{");
+  if (messageStart.includes(":")) {
+    if (
+      openBraceLocation == -1 ||
+      openBraceLocation > messageStart.indexOf(":")
+    ) {
+      return message.split(":").slice(1).join(":").trim();
+    }
+  }
+  return message;
+};
+
 /**
  *
  *
@@ -1570,27 +1608,644 @@ Invalid stage presets provided in task definition: ${String(
  */
 
 export const saveTrainingData = async (
-  example: TrainingDataExample
+  example: { id?: number | null } & TrainingDataExample
 ): Promise<void> => {
   try {
-    // delete existing example with exact same output
-    const existingExample = await sqlClient
-      .select({ id: trainingData.id })
-      .from(trainingData)
-      .where(eq(trainingData.outputString, example.output));
-    if (existingExample && existingExample[0] && existingExample[0].id) {
-      await sqlClient
-        .delete(trainingData)
-        .where(eq(trainingData.id, existingExample[0].id));
+    // process chatML messages
+    const inputMessages = [];
+    for (const message of example.inputMessages) {
+      inputMessages.push(removeChatMlRolePrefix(message));
     }
-    // save new example
-    await sqlClient.insert(trainingData).values({
-      inputChatMlMessages: example.input,
-      outputString: example.output,
-      qualityRating: example.qualityRating,
+    const outputMessage = removeChatMlRolePrefix(example.outputMessage);
+    if (example.id !== null && example.id !== undefined) {
+      // save new example
+      await sqlClient
+        .update(trainingData)
+        .set({
+          inputChatMlMessages: JSON.stringify(inputMessages),
+          outputChatMlMessage: outputMessage,
+          categoryTag: example.categoryTag,
+          qualityRating: example.qualityRating,
+        })
+        .where(eq(trainingData.id, example.id));
+    } else {
+      // update existing example
+      await sqlClient.insert(trainingData).values({
+        inputChatMlMessages: JSON.stringify(inputMessages),
+        outputChatMlMessage: outputMessage,
+        categoryTag: example.categoryTag,
+        qualityRating: example.qualityRating,
+      });
+    }
+  } catch (error) {
+    console.error(
+      "FAILED to save training data example with id #",
+      example.id,
+      ": ",
+      example
+    );
+    console.error(error);
+  }
+};
+
+/**
+ *
+ *
+ * Save an example input & output to inject into similar prompts.
+ *
+ *
+ */
+
+export const saveInjectedPrompt = async (
+  example: { id?: number | null } & InjectedPrompt
+): Promise<void> => {
+  try {
+    // process chatML messages
+    const userMessage = removeChatMlRolePrefix(example.userMessage);
+    const assistantMessage = removeChatMlRolePrefix(example.assistantMessage);
+
+    // insert or update main "injectedPrompts" table (applies when task runner restarts)
+    let idInMainTable = example.id;
+    if (idInMainTable !== null && idInMainTable !== undefined) {
+      // update existing
+      await sqlClient
+        .update(injectedPrompts)
+        .set({
+          userMessage,
+          assistantMessage,
+          numTokens: example.numTokens,
+        })
+        .where(eq(injectedPrompts.id, idInMainTable));
+    } else {
+      // insert new
+      const response = await sqlClient.insert(injectedPrompts).values({
+        userMessage,
+        assistantMessage,
+        numTokens: example.numTokens,
+      });
+      idInMainTable = +response.insertId;
+    }
+
+    // insert or update "newInjectedPrompts" table (applies within a few seconds)
+    const existingNewInjectedPrompt = await sqlClient
+      .select({ idInMainTable: newInjectedPrompts.idInMainTable })
+      .from(newInjectedPrompts)
+      .where(eq(newInjectedPrompts.idInMainTable, idInMainTable));
+    if (
+      existingNewInjectedPrompt &&
+      existingNewInjectedPrompt[0] &&
+      existingNewInjectedPrompt[0].idInMainTable
+    ) {
+      // update existing
+      await sqlClient
+        .update(newInjectedPrompts)
+        .set({ userMessage, assistantMessage, numTokens: example.numTokens })
+        .where(
+          eq(
+            newInjectedPrompts.idInMainTable,
+            existingNewInjectedPrompt[0].idInMainTable
+          )
+        );
+    } else {
+      // insert new
+      await sqlClient.insert(newInjectedPrompts).values({
+        idInMainTable: idInMainTable,
+        userMessage,
+        assistantMessage,
+        numTokens: example.numTokens,
+      });
+    }
+  } catch (error) {
+    console.error("FAILED to save injected prompt example: ", example);
+    console.error(error);
+  }
+};
+
+/**
+ *
+ *
+ * Save historical AI input & output.
+ *
+ *
+ */
+
+export const insertHistoricalAiCall = async (
+  data: HistoricalAiCall
+): Promise<void> => {
+  try {
+    // process chatML messages
+    const systemMessage = removeChatMlRolePrefix(data.systemMessage);
+    const userMessage = removeChatMlRolePrefix(data.userMessage);
+    const assistantMessage = removeChatMlRolePrefix(data.assistantMessage);
+
+    // insert new row
+    await sqlClient.insert(taskPromptHistory).values({
+      associatedTaskID: data.taskID,
+      systemMessage,
+      userMessage,
+      assistantMessage,
+      timestamp: data.timestamp,
     });
   } catch (error) {
-    console.error("FAILED to save training data example: ", example);
+    console.error(
+      "FAILED to insert AI input & output of an AI call in task #",
+      data.taskID,
+      ". Input data: ",
+      data
+    );
+    console.error(error);
+  }
+};
+
+/**
+ *
+ *
+ * Returns ids of up to `input.N` injected prompts, in ascending order.
+ * If startID is specified, the results will only include rows with ids greater than or equal to `input.startID`, and will ignore `input.endID`.
+ * If endID is specified, the results will only include rows with ids less than or equal to `input.endID`.
+ * If no startID or endID is specified, the results will be the N smallest ids.
+ *
+ *
+ */
+
+export const getBatchInjectedPromptIDs = async (input: {
+  N: number;
+  startID?: number | null;
+  endID?: number | null;
+}): Promise<number[]> => {
+  try {
+    let ascendingOrder = true;
+    let idComparison = gte(injectedPrompts.id, 0);
+    if (input.startID !== null && input.startID !== undefined) {
+      idComparison = gte(injectedPrompts.id, input.startID);
+    } else if (input.endID !== null && input.endID !== undefined) {
+      ascendingOrder = false;
+      idComparison = lte(injectedPrompts.id, input.endID);
+    }
+    const response = await sqlClient
+      .select({
+        id: injectedPrompts.id,
+      })
+      .from(injectedPrompts)
+      .where(idComparison)
+      .orderBy(
+        ascendingOrder ? asc(injectedPrompts.id) : desc(injectedPrompts.id)
+      )
+      .limit(input.N);
+    return response.map((row) => row.id);
+  } catch (error) {
+    console.error(
+      "FAILED to get batch of injected prompt ids. Request input: ",
+      input
+    );
+    console.error(error);
+    return [];
+  }
+};
+
+/**
+ *
+ *
+ * Returns ids of up to `input.N` training data points, in ascending order.
+ * If startID is specified, the results will only include tasks with ids greater than or equal to `input.startID`, and will ignore `input.endID`.
+ * If endID is specified, the results will only include tasks with ids less than or equal to `input.endID`.
+ * If no startID or endID is specified, the results will be the N smallest ids.
+ *
+ *
+ */
+
+export const getBatchTrainingDataIDs = async (input: {
+  categoryTag: string;
+  qualityRating: number;
+  N: number;
+  startID?: number | null;
+  endID?: number | null;
+}): Promise<number[]> => {
+  try {
+    let ascendingOrder = true;
+    let idComparison = gte(trainingData.id, 0);
+    if (input.startID !== null && input.startID !== undefined) {
+      idComparison = gte(trainingData.id, input.startID);
+    } else if (input.endID !== null && input.endID !== undefined) {
+      ascendingOrder = false;
+      idComparison = lte(trainingData.id, input.endID);
+    }
+    const response = await sqlClient
+      .select({
+        id: trainingData.id,
+      })
+      .from(trainingData)
+      .where(
+        and(idComparison, eq(trainingData.qualityRating, input.qualityRating))
+      )
+      .orderBy(ascendingOrder ? asc(trainingData.id) : desc(trainingData.id))
+      .limit(input.N);
+    return response.map((row) => row.id);
+  } catch (error) {
+    console.error(
+      "FAILED to get batch of training data points for category tag, '",
+      input.categoryTag,
+      "'. Request input: ",
+      input
+    );
+    console.error(error);
+    return [];
+  }
+};
+
+/**
+ *
+ *
+ * Returns ids and timestamps of up to `input.N` most recently modified tasks`.
+ * If startTime is specified, the results will only include tasks modified after `input.startTime`.
+ * If endTime is specified, the results will only include tasks modified before `input.endTime`, and will ignore `input.startTime`.
+ * If no startTime or endTime is specified, the results will be the N most recent tasks.
+ *
+ *
+ */
+
+export const getBatchRecentTaskIDs = async (input: {
+  N: number;
+  startTime?: Date | null;
+  endTime?: Date | null;
+}): Promise<{ taskID: number; timeLastUpdated: Date }[]> => {
+  try {
+    let ascendingOrder = false;
+    let timeComparison = lte(tasks.timeLastUpdated, new Date());
+    if (input.endTime !== null && input.endTime !== undefined) {
+      timeComparison = lte(tasks.timeLastUpdated, input.endTime);
+    } else if (input.startTime !== null && input.startTime !== undefined) {
+      ascendingOrder = true;
+      timeComparison = gte(tasks.timeLastUpdated, input.startTime);
+    }
+    const response = await sqlClient
+      .select({
+        taskID: tasks.taskID,
+        timeLastUpdated: tasks.timeLastUpdated,
+      })
+      .from(tasks)
+      .where(timeComparison)
+      .orderBy(
+        ascendingOrder
+          ? asc(tasks.timeLastUpdated)
+          : desc(tasks.timeLastUpdated)
+      )
+      .limit(input.N);
+    return response;
+  } catch (error) {
+    console.error("FAILED to get batch of task IDs. Request input: ", input);
+    console.error(error);
+    return [];
+  }
+};
+
+/**
+ *
+ *
+ * Returns ids and timestamps of up to `input.N` most recent historical AI inputs & outputs from task `input.taskID`.
+ * If startTime is specified, the results will only include timestamps after `input.startTime`.
+ * If endTime is specified, the results will only include timestamps before `input.endTime`, and will ignore `input.startTime`.
+ * If no startTime or endTime is specified, the results will be the most N recent prompts.
+ *
+ *
+ */
+
+export const getBatchHistoricalAiCallIDs = async (input: {
+  taskID: number;
+  N: number;
+  startTime?: Date | null;
+  endTime?: Date | null;
+}): Promise<{ id: number; timestamp: Date }[]> => {
+  try {
+    let ascendingOrder = false;
+    let timeComparison = lte(taskPromptHistory.timestamp, new Date());
+    if (input.endTime !== null && input.endTime !== undefined) {
+      timeComparison = lte(taskPromptHistory.timestamp, input.endTime);
+    } else if (input.startTime !== null && input.startTime !== undefined) {
+      ascendingOrder = true;
+      timeComparison = gte(taskPromptHistory.timestamp, input.startTime);
+    }
+    const response = await sqlClient
+      .select({
+        id: taskPromptHistory.id,
+        timestamp: taskPromptHistory.timestamp,
+      })
+      .from(taskPromptHistory)
+      .where(
+        and(
+          eq(taskPromptHistory.associatedTaskID, input.taskID),
+          timeComparison
+        )
+      )
+      .orderBy(
+        ascendingOrder
+          ? asc(taskPromptHistory.timestamp)
+          : desc(taskPromptHistory.timestamp)
+      )
+      .limit(input.N);
+    return response;
+  } catch (error) {
+    console.error(
+      "FAILED to get batch of AI inputs & outputs for task #",
+      input.taskID,
+      ". Request input: ",
+      input
+    );
+    console.error(error);
+    return [];
+  }
+};
+
+/**
+ *
+ *
+ * Gets data on a single historical AI call (AI input & output).
+ *
+ *
+ */
+
+export const getHistoricalAiCall = async (input: {
+  id: number;
+}): Promise<HistoricalAiCall | null> => {
+  try {
+    const results = await sqlClient
+      .select()
+      .from(taskPromptHistory)
+      .where(eq(taskPromptHistory.id, input.id))
+      .limit(1);
+    const unparsedResult = results[0];
+    return historicalAiCallSchema.parse({
+      taskID: unparsedResult.associatedTaskID,
+      systemMessage: unparsedResult.systemMessage,
+      userMessage: unparsedResult.userMessage,
+      assistantMessage: unparsedResult.assistantMessage,
+      timestamp: unparsedResult.timestamp,
+    });
+  } catch (error) {
+    console.error(
+      "FAILED to get data for historical AI input & output for taskPromptHistory table, row with ID #",
+      input.id
+    );
+    console.error(error);
+    return null;
+  }
+};
+
+/**
+ *
+ *
+ * Gets data on a single training data point.
+ *
+ *
+ */
+
+export const getTrainingDataExample = async (input: {
+  id: number;
+}): Promise<TrainingDataExample | null> => {
+  try {
+    const results = await sqlClient
+      .select()
+      .from(trainingData)
+      .where(eq(trainingData.id, input.id))
+      .limit(1);
+    const unparsedResult = results[0];
+    return trainingDataExampleSchema.parse({
+      categoryTag: unparsedResult.categoryTag,
+      qualityRating: unparsedResult.qualityRating,
+      inputMessages: JSON.parse(unparsedResult.inputChatMlMessages) as string[],
+      outputMessage: unparsedResult.outputChatMlMessage,
+    });
+  } catch (error) {
+    console.error(
+      "FAILED to get training data example from trainingData table, row with ID #",
+      input.id
+    );
+    console.error(error);
+    return null;
+  }
+};
+
+/**
+ *
+ *
+ * Gets data on a injected prompt.
+ *
+ *
+ */
+
+export const getInjectedPrompt = async (input: {
+  id: number;
+}): Promise<InjectedPrompt | null> => {
+  try {
+    const results = await sqlClient
+      .select()
+      .from(injectedPrompts)
+      .where(eq(injectedPrompts.id, input.id))
+      .limit(1);
+    const unparsedResult = results[0];
+    return injectedPromptSchema.parse({
+      userMessage: unparsedResult.userMessage,
+      assistantMessage: unparsedResult.assistantMessage,
+      numTokens: unparsedResult.numTokens,
+    });
+  } catch (error) {
+    console.error(
+      "FAILED to get injected prompt data from injectedPrompts table, row with ID #",
+      input.id
+    );
+    console.error(error);
+    return null;
+  }
+};
+
+/**
+ *
+ *
+ * Deletes historical AI calls older than `input.secondsAgo`.
+ *
+ *
+ */
+
+export const deletePromptHistory = async (input: {
+  secondsAgo: number;
+}): Promise<void> => {
+  try {
+    await sqlClient
+      .delete(taskPromptHistory)
+      .where(
+        lt(
+          taskPromptHistory.timestamp,
+          new Date(Date.now() - input.secondsAgo * 1000)
+        )
+      );
+  } catch (error) {
+    console.error(
+      `FAILED to delete task prompt history older than ${input.secondsAgo} seconds ago.`
+    );
+    console.error(error);
+  }
+};
+
+/**
+ *
+ *
+ * Searches injectedPrompts table for content, whether it's JSON or string.
+ *
+ *
+ */
+
+export const isInjectedPromptPresent = async (input: {
+  userMessage: string;
+  assistantMessage: string;
+}): Promise<boolean> => {
+  try {
+    let userMsgJsonStr = input.userMessage;
+    try {
+      const jsonObjContent = jsonObjSchema.parse(JSON.parse(input.userMessage));
+      userMsgJsonStr = JSON.stringify(jsonObjContent);
+    } catch (_) {}
+    let assistantMsgJsonStr = input.userMessage;
+    try {
+      const jsonObjContent = jsonObjSchema.parse(
+        JSON.parse(input.assistantMessage)
+      );
+      assistantMsgJsonStr = JSON.stringify(jsonObjContent);
+    } catch (_) {}
+    const results = await sqlClient
+      .select({
+        id: injectedPrompts.id,
+      })
+      .from(injectedPrompts)
+      .where(
+        and(
+          or(
+            eq(injectedPrompts.userMessage, input.userMessage),
+            eq(injectedPrompts.userMessage, userMsgJsonStr)
+          ),
+          or(
+            eq(injectedPrompts.assistantMessage, input.assistantMessage),
+            eq(injectedPrompts.assistantMessage, assistantMsgJsonStr)
+          )
+        )
+      )
+      .limit(1);
+    return results.length > 0;
+  } catch (error) {
+    console.error(
+      `FAILED to check whether injectedPrompts table contains a row with userMessage: '''${input.userMessage}''' 
+\n assistantMessage: '''${input.assistantMessage}'''`
+    );
+    console.error(error);
+    return false;
+  }
+};
+
+/**
+ *
+ *
+ * Searches injectedPrompts table for content, whether it's JSON or string.
+ *
+ *
+ */
+
+export const isTrainingDataExamplePresent = async (input: {
+  categoryTag: string;
+  inputMessages: string[];
+  outputMessage: string;
+}): Promise<boolean> => {
+  try {
+    // get possible alternate format of training data input
+    const altInputMessages: string[] = [];
+    for (const inputMsgStr of input.inputMessages) {
+      try {
+        const jsonObjContent = jsonObjSchema.parse(JSON.parse(inputMsgStr));
+        altInputMessages.push(JSON.stringify(jsonObjContent));
+      } catch (_) {
+        altInputMessages.push(inputMsgStr);
+      }
+    }
+    // get possible alternate format of training data output
+    let outputMsgJsonStr = input.outputMessage;
+    try {
+      const jsonObjContent = jsonObjSchema.parse(
+        JSON.parse(input.outputMessage)
+      );
+      outputMsgJsonStr = JSON.stringify(jsonObjContent);
+    } catch (_) {}
+    const results = await sqlClient
+      .select({
+        id: trainingData.id,
+      })
+      .from(trainingData)
+      .where(
+        and(
+          eq(trainingData.categoryTag, input.categoryTag),
+          or(
+            eq(
+              trainingData.inputChatMlMessages,
+              JSON.stringify(input.inputMessages)
+            ),
+            eq(
+              trainingData.inputChatMlMessages,
+              JSON.stringify(altInputMessages)
+            )
+          ),
+          or(
+            eq(trainingData.outputChatMlMessage, input.outputMessage),
+            eq(trainingData.outputChatMlMessage, outputMsgJsonStr)
+          )
+        )
+      )
+      .limit(1);
+    return results.length > 0;
+  } catch (error) {
+    console.error(
+      `FAILED to check whether trainingData table contains a row with inputChatMlMessages: ${input.inputMessages.join(
+        ", "
+      )}
+\n outputChatMlMessage: '''${input.outputMessage}'''`
+    );
+    console.error(error);
+    return false;
+  }
+};
+
+/**
+ *
+ *
+ * Delete a training data example.
+ *
+ *
+ */
+
+export const deleteTrainingData = async (input: {
+  id: number;
+}): Promise<void> => {
+  try {
+    await sqlClient.delete(trainingData).where(eq(trainingData.id, input.id));
+  } catch (error) {
+    console.error(`FAILED to delete training data example with id ${input.id}`);
+    console.error(error);
+  }
+};
+
+/**
+ *
+ *
+ * Delete an injected prompt.
+ *
+ *
+ */
+
+export const deleteInjectedPrompt = async (input: {
+  id: number;
+}): Promise<void> => {
+  try {
+    await sqlClient
+      .delete(injectedPrompts)
+      .where(eq(injectedPrompts.id, input.id));
+  } catch (error) {
+    console.error(`FAILED to delete injected prompt with id: ${input.id}`);
     console.error(error);
   }
 };

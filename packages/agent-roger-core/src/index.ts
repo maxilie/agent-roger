@@ -24,10 +24,31 @@ import {
   killDescendents,
   restartTaskTree,
   saveTrainingData,
+  saveInjectedPrompt,
+  getInjectedPrompt,
+  getHistoricalAiCall,
+  getTrainingDataExample,
+  getBatchHistoricalAiCallIDs,
+  getBatchInjectedPromptIDs,
+  getBatchRecentTaskIDs,
+  getBatchTrainingDataIDs,
   trainingData,
+  injectedPrompts,
+  newInjectedPrompts,
   sqlClient,
+  insertHistoricalAiCall,
+  deletePromptHistory,
+  isInjectedPromptPresent,
+  isTrainingDataExamplePresent,
+  deleteTrainingData,
+  deleteInjectedPrompt,
 } from "./db";
-import { AI_MODELS, AiModel, MAX_UNSYNC_TIME } from "./constants";
+import {
+  AI_MODELS,
+  AiModel,
+  MAX_UNSYNC_TIME,
+  TRAINING_DATA_TAGS,
+} from "./constants";
 import {
   type StageFunction,
   type StageFunctionHelpers,
@@ -67,7 +88,13 @@ import {
   OutSchema_getTaskBasicDatas,
   runtimeErrorsSchema,
   RuntimeErrors,
+  type VectorDbDocument,
   TrainingDataExample,
+  InjectedPrompt,
+  injectedPromptSchema,
+  trainingDataExampleSchema,
+  HistoricalAiCall,
+  historicalAiCallSchema,
 } from "./zod-schema";
 import {
   Json,
@@ -76,10 +103,13 @@ import {
   jsonSchema,
 } from "./zod-schema/stage-base/json.js";
 import { TaskDefinition, taskDefinitionSchema } from "./zod-schema/stage-base";
+import { SYSTEM_MESSAGES } from "./constants/prompts.js";
 
 export interface DB {
   tasks: typeof tasks;
   trainingData: typeof trainingData;
+  injectedPrompts: typeof injectedPrompts;
+  newInjectedPrompts: typeof newInjectedPrompts;
   sqlClient: typeof sqlClient;
   withNeo4jDriver: typeof withNeo4jDriver;
   withRedis: typeof withRedis;
@@ -102,11 +132,27 @@ export interface DB {
   killDescendents: typeof killDescendents;
   restartTaskTree: typeof restartTaskTree;
   saveTrainingData: typeof saveTrainingData;
+  saveInjectedPrompt: typeof saveInjectedPrompt;
+  insertHistoricalAiCall: typeof insertHistoricalAiCall;
+  getInjectedPrompt: typeof getInjectedPrompt;
+  getTrainingDataExample: typeof getTrainingDataExample;
+  getHistoricalAiCall: typeof getHistoricalAiCall;
+  getBatchHistoricalAiCallIDs: typeof getBatchHistoricalAiCallIDs;
+  getBatchInjectedPromptIDs: typeof getBatchInjectedPromptIDs;
+  getBatchRecentTaskIDs: typeof getBatchRecentTaskIDs;
+  getBatchTrainingDataIDs: typeof getBatchTrainingDataIDs;
+  deletePromptHistory: typeof deletePromptHistory;
+  isInjectedPromptPresent: typeof isInjectedPromptPresent;
+  isTrainingDataExamplePresent: typeof isTrainingDataExamplePresent;
+  deleteTrainingData: typeof deleteTrainingData;
+  deleteInjectedPrompt: typeof deleteInjectedPrompt;
 }
 
 const db: DB = {
   tasks: tasks,
   trainingData: trainingData,
+  injectedPrompts: injectedPrompts,
+  newInjectedPrompts: newInjectedPrompts,
   sqlClient: sqlClient,
   withNeo4jDriver: withNeo4jDriver,
   withRedis: withRedis,
@@ -129,9 +175,28 @@ const db: DB = {
   killDescendents: killDescendents,
   restartTaskTree: restartTaskTree,
   saveTrainingData: saveTrainingData,
+  saveInjectedPrompt: saveInjectedPrompt,
+  insertHistoricalAiCall: insertHistoricalAiCall,
+  getInjectedPrompt: getInjectedPrompt,
+  getTrainingDataExample: getTrainingDataExample,
+  getHistoricalAiCall: getHistoricalAiCall,
+  getBatchHistoricalAiCallIDs: getBatchHistoricalAiCallIDs,
+  getBatchInjectedPromptIDs: getBatchInjectedPromptIDs,
+  getBatchRecentTaskIDs: getBatchRecentTaskIDs,
+  getBatchTrainingDataIDs: getBatchTrainingDataIDs,
+  deletePromptHistory: deletePromptHistory,
+  isInjectedPromptPresent: isInjectedPromptPresent,
+  isTrainingDataExamplePresent: isTrainingDataExamplePresent,
+  deleteTrainingData: deleteTrainingData,
+  deleteInjectedPrompt: deleteInjectedPrompt,
 };
 
 export interface Schema {
+  json: typeof jsonSchema;
+  jsonObj: typeof jsonObjSchema;
+  trainingDataExample: typeof trainingDataExampleSchema;
+  injectedPrompt: typeof injectedPromptSchema;
+  historicalAiCall: typeof historicalAiCallSchema;
   input: {
     saveTask: typeof InSchema_saveTaskData;
     createRootTask: typeof InSchema_createRootTask;
@@ -153,20 +218,25 @@ export interface Schema {
     getTaskStageNData: typeof OutSchema_getTaskStageNData;
     getTaskTree: typeof OutSchema_getTaskTree;
   };
-  json: typeof jsonSchema;
-  jsonObj: typeof jsonObjSchema;
-  taskDefinition: typeof taskDefinitionSchema;
-  stageData: typeof stageDataSchema;
-  resultData: typeof resultDataSchema;
-  runtimeErrors: typeof runtimeErrorsSchema;
-  taskBasicData: typeof taskBasicDataSchema;
-  taskData: typeof taskDataSchema;
-  updateTask: typeof taskUpdateSchema;
-  newRootTask: typeof newRootTaskSchema;
-  newChildTask: typeof newChildTaskSchema;
+  task: {
+    taskDefinition: typeof taskDefinitionSchema;
+    stageData: typeof stageDataSchema;
+    resultData: typeof resultDataSchema;
+    runtimeErrors: typeof runtimeErrorsSchema;
+    taskBasicData: typeof taskBasicDataSchema;
+    taskData: typeof taskDataSchema;
+    updateTask: typeof taskUpdateSchema;
+    newRootTask: typeof newRootTaskSchema;
+    newChildTask: typeof newChildTaskSchema;
+  };
 }
 
 const schema: Schema = {
+  json: jsonSchema,
+  jsonObj: jsonObjSchema,
+  trainingDataExample: trainingDataExampleSchema,
+  injectedPrompt: injectedPromptSchema,
+  historicalAiCall: historicalAiCallSchema,
   input: {
     saveTask: InSchema_saveTaskData,
     createRootTask: InSchema_createRootTask,
@@ -188,17 +258,25 @@ const schema: Schema = {
     getTaskStageNData: OutSchema_getTaskStageNData,
     getTaskTree: OutSchema_getTaskTree,
   },
-  json: jsonSchema,
-  jsonObj: jsonObjSchema,
-  taskDefinition: taskDefinitionSchema,
-  stageData: stageDataSchema,
-  resultData: resultDataSchema,
-  runtimeErrors: runtimeErrorsSchema,
-  taskBasicData: taskBasicDataSchema,
-  taskData: taskDataSchema,
-  updateTask: taskUpdateSchema,
-  newRootTask: newRootTaskSchema,
-  newChildTask: newChildTaskSchema,
+  task: {
+    taskDefinition: taskDefinitionSchema,
+    stageData: stageDataSchema,
+    resultData: resultDataSchema,
+    runtimeErrors: runtimeErrorsSchema,
+    taskBasicData: taskBasicDataSchema,
+    taskData: taskDataSchema,
+    updateTask: taskUpdateSchema,
+    newRootTask: newRootTaskSchema,
+    newChildTask: newChildTaskSchema,
+  },
+};
+
+export interface Prompts {
+  system: typeof SYSTEM_MESSAGES;
+}
+
+export const prompts: Prompts = {
+  system: SYSTEM_MESSAGES,
 };
 
 /**
@@ -249,8 +327,11 @@ export {
   MAX_UNSYNC_TIME,
   AI_MODELS,
   AiModel,
+  TrainingDataExample,
+  InjectedPrompt,
+  HistoricalAiCall,
+  VectorDbDocument,
+  TRAINING_DATA_TAGS,
 };
 
 export * from "./model-input";
-
-export { TrainingDataExample };

@@ -5,7 +5,7 @@ import {
 import { TASK_PRESETS } from "../presets.js";
 import { getTaskBasicData } from "../../db/db-actions.js";
 import { getNumTokens } from "../../model-input/index.js";
-import { type VectorDbDocument } from "../../zod-schema/stage-base/index.js";
+import { type VectorDbDocument } from "../../zod-schema/index.js";
 
 export const SEARCH_MEMORY_BANK_STAGE_FNS: { [key: string]: StageFunction } = {
   // eslint-disable-next-line @typescript-eslint/require-await

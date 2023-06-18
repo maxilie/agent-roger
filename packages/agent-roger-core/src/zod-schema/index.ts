@@ -237,10 +237,35 @@ export type Neo4JTask = {
   };
 };
 
-export type TrainingDataExample = {
-  input: string[];
-  output: string;
-  qualityRating: number;
+export type VectorDbDocument = {
+  uuid: string;
+  content: string;
+  location: string;
+  timeString?: string;
 };
+
+export const trainingDataExampleSchema = z.object({
+  inputMessages: z.array(z.string()),
+  outputMessage: z.string(),
+  categoryTag: z.string(),
+  qualityRating: z.number().min(0).max(5),
+});
+export type TrainingDataExample = z.infer<typeof trainingDataExampleSchema>;
+
+export const injectedPromptSchema = z.object({
+  userMessage: z.string(),
+  assistantMessage: z.string(),
+  numTokens: z.number().min(1),
+});
+export type InjectedPrompt = z.infer<typeof injectedPromptSchema>;
+
+export const historicalAiCallSchema = z.object({
+  taskID: z.number(),
+  systemMessage: z.string(),
+  userMessage: z.string(),
+  assistantMessage: z.string(),
+  timestamp: z.date(),
+});
+export type HistoricalAiCall = z.infer<typeof historicalAiCallSchema>;
 
 export { taskDefinitionSchema, type TaskDefinition };

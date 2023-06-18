@@ -14,7 +14,7 @@ import {
   env,
   type TextLlmInput,
   assembleTextLlmInput,
-  type TrainingDataExample,
+  type HistoricalAiCall,
 } from "agent-roger-core";
 import fs from "fs/promises";
 import path from "path";
@@ -56,7 +56,7 @@ class RunningTask {
   startTime: Date;
   timeStageWasCalled: { [stageIdx: number]: number };
   memoryBankID: "global" | string | null;
-  unsavedTrainingData: TrainingDataExample[];
+  unsavedPromptHistory: HistoricalAiCall[];
   wasRestartedWhileRunning: boolean;
 
   constructor(
@@ -84,7 +84,7 @@ class RunningTask {
     this.taskBasicData = null;
     this.timeStageWasCalled = {};
     this.memoryBankID = null;
-    this.unsavedTrainingData = [];
+    this.unsavedPromptHistory = [];
     this.wasRestartedWhileRunning = false;
   }
 
@@ -102,14 +102,16 @@ class RunningTask {
       this.taskBasicData = task;
 
       // get task definition
-      const taskDefinition = schema.taskDefinition.parse(task.taskDefinition);
+      const taskDefinition = schema.task.taskDefinition.parse(
+        task.taskDefinition
+      );
       const finalStageIdx = taskDefinition.stagePresets.length - 1;
       this.memoryBankID = task.memoryBankID;
 
       // get stage data
       this.localStageIdx = task.lastEndedStage + 1;
       if (this.localStageIdx <= finalStageIdx) {
-        this.loadedStageData[this.localStageIdx] = schema.stageData.parse(
+        this.loadedStageData[this.localStageIdx] = schema.task.stageData.parse(
           task.currentStageData || {
             ended: false,
             subTasksSpawned: [],
@@ -118,13 +120,14 @@ class RunningTask {
         );
       }
       if (this.localStageIdx > 0) {
-        this.loadedStageData[this.localStageIdx - 1] = schema.stageData.parse(
-          task.previousStageData || {
-            ended: false,
-            subTasksSpawned: [],
-            fields: {},
-          }
-        );
+        this.loadedStageData[this.localStageIdx - 1] =
+          schema.task.stageData.parse(
+            task.previousStageData || {
+              ended: false,
+              subTasksSpawned: [],
+              fields: {},
+            }
+          );
       }
 
       // for up to 10 seconds...
@@ -155,11 +158,12 @@ class RunningTask {
 
         // ensure local stage data for current stage
         if (!this.loadedStageData[this.localStageIdx]) {
-          this.loadedStageData[this.localStageIdx] = schema.stageData.parse({
-            ended: false,
-            subTasksSpawned: [],
-            fields: {},
-          });
+          this.loadedStageData[this.localStageIdx] =
+            schema.task.stageData.parse({
+              ended: false,
+              subTasksSpawned: [],
+              fields: {},
+            });
         }
         try {
           // get stage function
@@ -321,7 +325,7 @@ class RunningTask {
         });
         this.loadedStageData[prevStage] =
           prevStageData ||
-          schema.stageData.parse({
+          schema.task.stageData.parse({
             ended: true,
             subTasksSpawned: [],
             fields: {},
@@ -398,11 +402,13 @@ class RunningTask {
         "Failed to generate any samples with ratings from the LLM. Please try again."
       );
     }
-    // add example to list of training data to save later
-    this.unsavedTrainingData.push({
-      input: data.chatMlMessages,
-      output: JSON.stringify(bestResult),
-      qualityRating: 0,
+    // add example to list of input & output to save later
+    this.unsavedPromptHistory.push({
+      taskID: this.taskID,
+      systemMessage: data.chatMlMessages[0],
+      userMessage: data.chatMlMessages[1],
+      assistantMessage: JSON.stringify(bestResult),
+      timestamp: new Date(),
     });
 
     // check if the AI has requested to pause the task
@@ -1099,7 +1105,7 @@ ERROR MESSAGE: ""${openAiResponse.statusText}""    SPECIFIC ERROR MESSAGE: ""${o
           lastEndedStage = i;
         }
       }
-      const newTaskData: TaskUpdateData = schema.updateTask.parse({
+      const newTaskData: TaskUpdateData = schema.task.updateTask.parse({
         memoryBankID: this.memoryBankID,
         paused: this.wasPaused ? true : this.taskBasicData?.paused,
         success: taskSucceeded,
@@ -1191,9 +1197,9 @@ ERROR MESSAGE: ""${openAiResponse.statusText}""    SPECIFIC ERROR MESSAGE: ""${o
         this.redis
       );
 
-      // save training data
-      for (const example of this.unsavedTrainingData) {
-        await db.saveTrainingData(example);
+      // save prompt history
+      for (const aiCall of this.unsavedPromptHistory) {
+        await db.insertHistoricalAiCall(aiCall);
       }
     } catch (err) {}
   }
