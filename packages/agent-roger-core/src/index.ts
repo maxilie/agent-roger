@@ -1,4 +1,5 @@
 import { env as _env } from "./env.mjs";
+import { weaviateHelp } from "./db/weaviate-help.js";
 import {
   createChildTask,
   createRootTask,
@@ -111,6 +112,7 @@ export interface DB {
   injectedPrompts: typeof injectedPrompts;
   newInjectedPrompts: typeof newInjectedPrompts;
   sqlClient: typeof sqlClient;
+  weaviateHelp: typeof weaviateHelp;
   withNeo4jDriver: typeof withNeo4jDriver;
   withRedis: typeof withRedis;
   getRootTaskIDs: typeof getRootTaskIDs;
@@ -154,6 +156,7 @@ const db: DB = {
   injectedPrompts: injectedPrompts,
   newInjectedPrompts: newInjectedPrompts,
   sqlClient: sqlClient,
+  weaviateHelp: weaviateHelp,
   withNeo4jDriver: withNeo4jDriver,
   withRedis: withRedis,
   getRootTaskIDs: getRootTaskIDs,

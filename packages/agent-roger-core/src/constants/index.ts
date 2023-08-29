@@ -14,13 +14,21 @@ export type AiModel = {
   };
 };
 export const AI_MODELS: { [modelName: string]: AiModel } = {
+  mpt: {
+    id: "mpt",
+    maxTokens: 100000,
+    rateLimits: {
+      tokensPerMinute: 5000000,
+      requestsPerMinute: 10000,
+    },
+  },
   gpt4: {
     id: "gpt-4",
     maxTokens: 8000,
     rateLimits: {
       tokensPerMinute: 40000,
       requestsPerMinute: 200,
-      sharedLimits: ["gpt-3.5-turbo"],
+      sharedLimits: ["gpt-3.5-turbo", "gpt-3.5-turbo-16k"],
     },
   },
   gpt35Turbo: {
@@ -29,7 +37,16 @@ export const AI_MODELS: { [modelName: string]: AiModel } = {
     rateLimits: {
       tokensPerMinute: 90000,
       requestsPerMinute: 3500,
-      sharedLimits: ["gpt-4"],
+      sharedLimits: ["gpt-4", "gpt-3.5-turbo-16k"],
+    },
+  },
+  gpt35Turbo16k: {
+    id: "gpt-3.5-turbo-16k",
+    maxTokens: 16000,
+    rateLimits: {
+      tokensPerMinute: 180000,
+      requestsPerMinute: 3500,
+      sharedLimits: ["gpt-4", "gpt-3.5-turbo"],
     },
   },
   adaEmbedding: {

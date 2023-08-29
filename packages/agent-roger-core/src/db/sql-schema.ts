@@ -81,6 +81,7 @@ export const injectedPrompts = mysqlTable("injected_prompts", {
   numTokens: int("num_tokens").notNull().default(0),
 });
 export const newInjectedPrompts = mysqlTable("new_injected_prompts", {
+  id: serial("id").primaryKey(),
   idInMainTable: int("id_in_main_table").notNull(),
   userMessage: text("user_message").notNull(),
   assistantMessage: text("assistant_message").notNull(),

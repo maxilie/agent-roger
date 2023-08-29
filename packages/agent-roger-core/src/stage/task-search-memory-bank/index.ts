@@ -6,6 +6,7 @@ import { TASK_PRESETS } from "../presets.js";
 import { getTaskBasicData } from "../../db/db-actions.js";
 import { getNumTokens } from "../../model-input/index.js";
 import { type VectorDbDocument } from "../../zod-schema/index.js";
+import { weaviateHelp } from "../../db/weaviate-help.js";
 
 export const SEARCH_MEMORY_BANK_STAGE_FNS: { [key: string]: StageFunction } = {
   // eslint-disable-next-line @typescript-eslint/require-await
@@ -87,47 +88,50 @@ export const SEARCH_MEMORY_BANK_STAGE_FNS: { [key: string]: StageFunction } = {
     helpers.endStage();
   },
   getUniqueDocuments: async (helpers: StageFunctionHelpers) => {
-    const queryVariations = (await helpers.get("queryVariations")) as string[];
     const queryEmbeddings = (await helpers.get(
       "queryEmbeddings"
     )) as number[][];
     // create schema if it doesn't exist
-    const documentClass = "Class-" + (helpers.memoryBankID || "global");
-    try {
-      await helpers.weaviateClient.schema
-        .classCreator()
-        .withClass({
-          class: documentClass,
-          vectorizer: "none",
-        })
-        .do();
-    } catch (_) {}
+    const documentClass =
+      weaviateHelp.MEMORY_BANK_CLASS_PREFIX +
+      (helpers.memoryBankID || "global");
     // get unique documents
     const uniqueDocuments: VectorDbDocument[] = [];
     const documentUUIDs = new Set<string>();
+    type NearVecResult = {
+      _additional: {
+        id: string;
+      };
+      content: string;
+      location: string;
+    };
+    type WeaviateResponse = {
+      data: {
+        GET: { [key: string]: NearVecResult[] };
+      };
+    };
     try {
       for (let i = 0; i < queryEmbeddings.length; i++) {
-        const response = await helpers.weaviateClient.graphql
+        const response = (await helpers.weaviateClient.graphql
           .get()
           .withClassName(documentClass)
-          .withFields("content _additional{ score explainScore }")
-          .withHybrid({
-            query: queryVariations[i],
-            vector: queryEmbeddings[i],
-            alpha: 0.85, // 1.0 = only vector search, 0.0 = only keyword search
-          })
-          .do();
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        if (!response?.data?.Get || !response?.data?.Get[documentClass])
+          .withFields("content location _additional {id certainty}")
+          .withNearVector({ vector: queryEmbeddings[i], certainty: 0.7 })
+          .withLimit(15)
+          .do()) as WeaviateResponse;
+        if (!response?.data?.GET || !(documentClass in response.data.GET))
           continue;
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-        const documents = response.data.Get[documentClass];
+        const documents = response.data.GET[documentClass];
         for (const document of documents) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
-          const uuid = document.uuid as string;
-          if (documentUUIDs.has(uuid)) continue;
-          documentUUIDs.add(uuid);
-          uniqueDocuments.push(document as VectorDbDocument);
+          const documentID = document._additional.id;
+          if (documentUUIDs.has(documentID)) continue;
+          documentUUIDs.add(documentID);
+          uniqueDocuments.push({
+            id: documentID,
+            content: document.content,
+            location: document.location,
+          });
         }
       }
     } catch (error) {

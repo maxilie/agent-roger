@@ -19,9 +19,12 @@ const server = z.object({
   WEAVIATE_BACKUP_DIR: z.string().min(1),
   OPENAI_API_KEY: z.string().min(1),
   GPT4_ENABLED: z.boolean(),
+  MPT_ENABLED: z.boolean(),
+  CHANCE_TO_USE_GPT4: z.number(),
   REDIS_HOST: z.string(),
   REDIS_PORT: z.number(),
   REDIS_PASS: z.string(),
+  SHORT_EMBEDDINGS_API_KEY: z.string(),
 });
 
 /**
@@ -55,9 +58,12 @@ const processEnv = {
   WEAVIATE_HOST: process.env.WEAVIATE_HOST,
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   GPT4_ENABLED: process.env.GPT4_ENABLED == "true" || false,
+  MPT_ENABLED: process.env.MPT_ENABLED == "true" || false,
+  CHANCE_TO_USE_GPT4: process.env.CHANCE_TO_USE_GPT4,
   REDIS_HOST: process.env.REDIS_HOST,
   REDIS_PORT: +process.env.REDIS_PORT,
   REDIS_PASS: process.env.REDIS_PASS,
+  SHORT_EMBEDDINGS_API_KEY: process.env.SHORT_EMBEDDINGS_API_KEY,
 };
 
 // Don't touch the part below

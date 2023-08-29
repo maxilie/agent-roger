@@ -2,7 +2,7 @@
 console.log("Starting up! Importing dependencies...");
 
 import * as neo4j from "neo4j-driver";
-import weaviate, { type WeaviateClient } from "weaviate-ts-client";
+import { type WeaviateClient } from "weaviate-ts-client";
 
 import { db, env, REDIS_TASK_QUEUE, RedisManager } from "agent-roger-core";
 import {
@@ -11,6 +11,14 @@ import {
 } from "./constants.js";
 import { RunningTask } from "./running-task.js";
 import { RateLimiter } from "./rate-limiter.js";
+import {
+  initInjectedPrompts,
+  mergeNewInjectedPrompts,
+} from "./injected-prompt-fns.js";
+
+// settings
+const RESET_PIPELINE_INTERVAL_SECS = 15;
+const SYNC_NEW_PROMPTS_INTERVAL_SECS = 3;
 
 // globals
 const taskRunnerID: string =
@@ -21,9 +29,12 @@ let redis: RedisManager;
 const rateLimiter = new RateLimiter();
 let SHUTTING_DOWN = false;
 let FULLY_INITIALIZED = false;
+let IMPORTING_INJECTED_PROMPTS = false;
 const runningTaskCleanupFns: (() => Promise<void>)[] = [];
 const runningTaskIDs = new Set<number>();
 let lastRedisCallTime = new Date().getTime();
+let lastPipelineResetTime = new Date().getTime();
+let lastInjectedPromptsSyncTime = new Date().getTime();
 // every 5 seconds, print the number of tasks running
 const statusTimer = setInterval(() => {
   if (SHUTTING_DOWN || !FULLY_INITIALIZED) return;
@@ -36,22 +47,25 @@ const statusTimer = setInterval(() => {
 const initialize = async () => {
   FULLY_INITIALIZED = false;
   // connect to weaviate
-  weaviateClient = weaviate.client({
-    scheme: "https",
-    host: env.WEAVIATE_HOST,
-    apiKey: new weaviate.ApiKey(env.WEAVIATE_KEY),
-  });
+  weaviateClient = db.weaviateHelp.createWeaviateClient();
   // ensure weaviate schema are created
-  try {
-    await weaviateClient.schema.getter().do();
-  } catch (_) {}
-  // .then((res: any) => {
-  //   console.log(res);
-  // })
-  // .catch((err: Error) => {
-  //   console.error(err)
-  // });
+  if (!(await db.weaviateHelp.isConnectionValid(weaviateClient))) {
+    console.error("Could not connect to weaviate");
+    process.exit(1);
+  }
   console.log("connected to weaviate");
+
+  // import injected prompts
+  console.log("syncing injected prompts...");
+  try {
+    IMPORTING_INJECTED_PROMPTS = true;
+    await initInjectedPrompts(weaviateClient);
+    IMPORTING_INJECTED_PROMPTS = false;
+  } catch (err) {
+    console.error("Error syncing injected prompts:");
+    console.error(err);
+    process.exit(1);
+  }
 
   // connect to neo4j
   neo4jDriver = neo4j.driver(
@@ -72,7 +86,7 @@ const initialize = async () => {
     unfinishedTaskIDs.splice(MAX_CONCURRENT_TASKS);
   }
   console.log(
-    "initializing first task pipeline with task IDs: ",
+    "resetting redis task queue and initializing it with task IDs: ",
     unfinishedTaskIDs
   );
   FULLY_INITIALIZED = true;
@@ -198,9 +212,27 @@ const main = () => {
     .then(async () => {
       // run task pipeline logic
       while (true) {
-        // random chance to restart task queues, just in case a new SQL task wasn't added to the waiting queue
+        // merge new injected prompts every 2 seconds
+        if (
+          !IMPORTING_INJECTED_PROMPTS &&
+          (new Date().getTime() - lastInjectedPromptsSyncTime) / 1000 >
+            SYNC_NEW_PROMPTS_INTERVAL_SECS
+        ) {
+          new Promise<void>((resolve) => {
+            IMPORTING_INJECTED_PROMPTS = true;
+            mergeNewInjectedPrompts(weaviateClient).finally(() => resolve());
+          }).finally(() => {
+            lastInjectedPromptsSyncTime = new Date().getTime();
+            IMPORTING_INJECTED_PROMPTS = false;
+          });
+        }
+
+        // restart task queues every 15 seconds, just in case a new SQL task wasn't added to the waiting queue
         if (SHUTTING_DOWN) return;
-        if (Math.random() < 0.001) {
+        if (
+          (new Date().getTime() - lastPipelineResetTime) / 1000 >
+          RESET_PIPELINE_INTERVAL_SECS
+        ) {
           console.log("Restarting queues...");
           try {
             const unfinishedTaskIDs = await db.getActiveTaskIDs();
@@ -214,6 +246,7 @@ const main = () => {
             console.error("Error restarting task queues: ");
             console.error(error);
           }
+          lastPipelineResetTime = new Date().getTime();
         }
 
         // run the next redis pipeline
@@ -234,7 +267,7 @@ const main = () => {
       }
     })
     .catch((error) => {
-      console.error("Error initializing db connections: ", error);
+      console.error("Error initializing the task runner: ", error);
       console.log("Restarting in 5 seconds...");
       if (SHUTTING_DOWN) return;
       setTimeout(main, 5000);
@@ -253,7 +286,9 @@ process.on("SIGINT", () => {
         `Waiting for ${String(runningTaskIDs.size)} tasks to clean up...`
       );
       // eslint-disable-next-line @typescript-eslint/no-empty-function
-      Promise.all(runningTaskCleanupFns).catch((error) => {});
+      try {
+        await Promise.allSettled(runningTaskCleanupFns);
+      } catch (_) {}
       let retries = 0;
       while (retries < 5 && runningTaskIDs.size > 0) {
         await new Promise((resolve) => setTimeout(resolve, 1000));

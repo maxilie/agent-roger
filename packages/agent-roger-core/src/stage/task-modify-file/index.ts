@@ -4,6 +4,7 @@ import {
 } from "../stage-function.js";
 import { TASK_PRESETS } from "../presets.js";
 import { getTaskBasicData } from "../../db/db-actions.js";
+import { weaviateHelp } from "../../db/weaviate-help.js";
 
 const maxLlmWords = 850;
 const maxLineWords = maxLlmWords / 9.8;
@@ -66,66 +67,19 @@ export const MODIFY_FILE_STAGE_FNS: { [key: string]: StageFunction } = {
     }
 
     // remove file from local memory bank
-    const documentClass = "Class-" + (helpers.memoryBankID || "global");
-    const response = await helpers.weaviateClient.graphql
-      .get()
-      .withClassName(documentClass)
-      .withWhere({
-        path: ["location"],
-        operator: "Equal",
-        valueText: fileName,
-      })
-      .withFields("_additional {id}")
-      .do();
-    const documentIdsToDelete: string[] = [];
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (response?.data?.Get && response?.data?.Get[documentClass]) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      const documents = response.data.Get[documentClass];
-      for (const document of documents) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
-        const id = document._additional.id as string;
-        documentIdsToDelete.push(id);
-      }
-      for (const documentID of documentIdsToDelete) {
-        await helpers.weaviateClient.data
-          .deleter()
-          .withClassName(documentClass)
-          .withId(documentID)
-          .do();
-      }
-    }
+    await weaviateHelp.batchDeleteFileDocuments(
+      helpers.weaviateClient,
+      fileName,
+      helpers.memoryBankID || "global"
+    );
 
     // remove file from global memory bank
     if (helpers.memoryBankID && helpers.memoryBankID != "global") {
-      const response = await helpers.weaviateClient.graphql
-        .get()
-        .withClassName("Class-global")
-        .withWhere({
-          path: ["location"],
-          operator: "Equal",
-          valueText: fileName,
-        })
-        .withFields("_additional {id}")
-        .do();
-      const documentIdsToDelete: string[] = [];
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (response?.data?.Get && response?.data?.Get[documentClass]) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-        const documents = response.data.Get[documentClass];
-        for (const document of documents) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
-          const id = document._additional.id as string;
-          documentIdsToDelete.push(id);
-        }
-        for (const documentID of documentIdsToDelete) {
-          await helpers.weaviateClient.data
-            .deleter()
-            .withClassName("Class-global")
-            .withId(documentID)
-            .do();
-        }
-      }
+      await weaviateHelp.batchDeleteFileDocuments(
+        helpers.weaviateClient,
+        fileName,
+        "global"
+      );
     }
     helpers.taskResult({
       failed: false,

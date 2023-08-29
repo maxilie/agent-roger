@@ -5,6 +5,7 @@ import {
 import { TASK_PRESETS } from "../presets.js";
 import { getTaskBasicData } from "../../db/db-actions.js";
 import { getNumTokens } from "../../model-input/index.js";
+import { weaviateHelp } from "../../db/weaviate-help.js";
 
 /**
  * Indexing a file creates documents with the following weaviate "properties":
@@ -30,7 +31,6 @@ type DocumentData = {
 };
 
 export const INDEX_FILE_STAGE_FNS: { [key: string]: StageFunction } = {
-  // eslint-disable-next-line @typescript-eslint/require-await
   clearFileFromMemoryBank: async (helpers: StageFunctionHelpers) => {
     // get file name
     let fileName = "";
@@ -53,66 +53,19 @@ export const INDEX_FILE_STAGE_FNS: { [key: string]: StageFunction } = {
     helpers.set("fileName", fileName);
 
     // remove file from local memory bank
-    const documentClass = "Class-" + (helpers.memoryBankID || "global");
-    const response = await helpers.weaviateClient.graphql
-      .get()
-      .withClassName(documentClass)
-      .withWhere({
-        path: ["location"],
-        operator: "Equal",
-        valueText: fileName,
-      })
-      .withFields("_additional {id}")
-      .do();
-    const documentIdsToDelete: string[] = [];
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (response?.data?.Get && response?.data?.Get[documentClass]) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      const documents = response.data.Get[documentClass];
-      for (const document of documents) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
-        const id = document._additional.id as string;
-        documentIdsToDelete.push(id);
-      }
-      for (const documentID of documentIdsToDelete) {
-        await helpers.weaviateClient.data
-          .deleter()
-          .withClassName(documentClass)
-          .withId(documentID)
-          .do();
-      }
-    }
+    await weaviateHelp.batchDeleteFileDocuments(
+      helpers.weaviateClient,
+      fileName,
+      helpers.memoryBankID || "global"
+    );
 
     // remove file from global memory bank
     if (helpers.memoryBankID && helpers.memoryBankID != "global") {
-      const response = await helpers.weaviateClient.graphql
-        .get()
-        .withClassName("Class-global")
-        .withWhere({
-          path: ["location"],
-          operator: "Equal",
-          valueText: fileName,
-        })
-        .withFields("_additional {id}")
-        .do();
-      const documentIdsToDelete: string[] = [];
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (response?.data?.Get && response?.data?.Get[documentClass]) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-        const documents = response.data.Get[documentClass];
-        for (const document of documents) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
-          const id = document._additional.id as string;
-          documentIdsToDelete.push(id);
-        }
-        for (const documentID of documentIdsToDelete) {
-          await helpers.weaviateClient.data
-            .deleter()
-            .withClassName("Class-global")
-            .withId(documentID)
-            .do();
-        }
-      }
+      await weaviateHelp.batchDeleteFileDocuments(
+        helpers.weaviateClient,
+        fileName,
+        "global"
+      );
     }
     helpers.endStage();
   },
@@ -472,9 +425,14 @@ export const INDEX_FILE_STAGE_FNS: { [key: string]: StageFunction } = {
     const broadFileSegmentDocuments = (await helpers.get(
       "broadFileSegmentDocuments"
     )) as DocumentData[];
-    const allDocuments: { class: string; location: string; content: string }[] =
-      [];
-    const documentClass = "Class-" + (helpers.memoryBankID || "global");
+    const allDocuments: {
+      class: string;
+      properties: { location: string; content: string };
+      vector: number[];
+    }[] = [];
+    const documentClass =
+      weaviateHelp.MEMORY_BANK_CLASS_PREFIX +
+      (helpers.memoryBankID || "global");
     const usingLocalMemoryBank =
       helpers.memoryBankID && helpers.memoryBankID != "global";
     [
@@ -485,25 +443,31 @@ export const INDEX_FILE_STAGE_FNS: { [key: string]: StageFunction } = {
       // add to local memory bank
       allDocuments.push({
         class: documentClass,
-        location: fileName,
-        content: document.documentText,
+        properties: {
+          location: fileName,
+          content: document.documentText,
+        },
+        vector: document.documentVector,
       });
       if (usingLocalMemoryBank) {
         // add to global memory bank
         allDocuments.push({
-          class: "Class-global",
-          location: fileName,
-          content: document.documentText,
+          class: weaviateHelp.MEMORY_BANK_CLASS_PREFIX + "global",
+          properties: {
+            location: fileName,
+            content: document.documentText,
+          },
+          vector: document.documentVector,
         });
       }
     });
     let batcher = helpers.weaviateClient.batch.objectsBatcher();
     let objectsInBatch = 0;
     for (let i = 0; i < allDocuments.length; i++) {
-      batcher.withObject(allDocuments[i]);
+      batcher = batcher.withObject(allDocuments[i]);
       objectsInBatch += 1;
       if (objectsInBatch >= batchSize || i == allDocuments.length - 1) {
-        await batcher.do();
+        await batcher.withConsistencyLevel("ONE").do();
         batcher = helpers.weaviateClient.batch.objectsBatcher();
       }
     }

@@ -5,7 +5,8 @@ import {
   SYSTEM_MESSAGES,
   type SuggestedApproaches,
 } from "../../constants/prompts";
-import { AI_MODELS } from "../../constants";
+import { AI_MODELS, type AiModel } from "../../constants";
+import { env } from "../../env.mjs";
 
 // gets number of tokens for an input
 export const getNumTokens = (messages: string[]) => {
@@ -16,11 +17,41 @@ export const getNumTokens = (messages: string[]) => {
   return numTokens;
 };
 
+/**
+ * Returns the shortest-context AiModel that can handle the given context length (including input & output tokens), or NULL if the context length is too large.
+ */
+export const getSmallestModel = (minContextLength: number): AiModel | null => {
+  // find shortest model that can handle the context length
+  let shortestSufficientModelInfo: AiModel | null = null;
+  for (const modelInfo of Object.values(AI_MODELS)) {
+    if (modelInfo.maxTokens < minContextLength) continue;
+    if (modelInfo.id == AI_MODELS.mpt.id && !env.MPT_ENABLED) continue;
+    if (modelInfo.id == AI_MODELS.gpt4.id && !env.GPT4_ENABLED) continue;
+    if (
+      !shortestSufficientModelInfo ||
+      modelInfo.maxTokens < shortestSufficientModelInfo.maxTokens
+    ) {
+      shortestSufficientModelInfo = modelInfo;
+    }
+  }
+  if (!shortestSufficientModelInfo) {
+    return env.MPT_ENABLED ? AI_MODELS.mpt : null;
+  }
+  // when a cheap model could suffice, randomly decide to use GPT-4 instead
+  if (
+    minContextLength < AI_MODELS.gpt4.maxTokens &&
+    env.GPT4_ENABLED &&
+    Math.random() < env.CHANCE_TO_USE_GPT4
+  ) {
+    return AI_MODELS.gpt4;
+  }
+  return shortestSufficientModelInfo;
+};
+
 export const textLlmInputSchema = z.object({
   chatMlMessages: z.array(z.string()),
   numInputTokens: z.number(),
   maxOutputTokens: z.number().optional(),
-  expectedOutputFields: z.array(z.string()),
 });
 
 export type TextLlmInput = z.infer<typeof textLlmInputSchema>;

@@ -1167,6 +1167,7 @@ export const PromptsModal = (props: {
         await trpcUtils.tasks.getHistoricalAiCall.invalidate();
         await trpcUtils.tasks.getTrainingData.invalidate();
         await trpcUtils.tasks.isInjectedPromptPresent.invalidate();
+        await trpcUtils.tasks.getBatchInjectedPromptIDs.invalidate();
       },
     });
   const addToPromptInjections = useCallback(async () => {
@@ -1193,6 +1194,7 @@ export const PromptsModal = (props: {
         await trpcUtils.tasks.getHistoricalAiCall.invalidate();
         await trpcUtils.tasks.getInjectedPrompt.invalidate();
         await trpcUtils.tasks.isTrainingDataExamplePresent.invalidate();
+        await trpcUtils.tasks.getBatchTrainingDataIDs.invalidate();
       },
     });
   const addToTrainingPair1x = useCallback(async () => {

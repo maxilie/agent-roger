@@ -15,6 +15,7 @@ import {
   type TextLlmInput,
   assembleTextLlmInput,
   type HistoricalAiCall,
+  getSmallestModel,
 } from "agent-roger-core";
 import fs from "fs/promises";
 import path from "path";
@@ -370,6 +371,8 @@ class RunningTask {
   async textLlmHelper(data: TextLlmInput): Promise<JsonObj> {
     const numHighTempSamples = 2;
     const numLowTempSamples = 5;
+    // get prompt injections
+
     // concurrently process multiple samples with different temperatures
     const promises = [];
     for (let i = 0; i < numHighTempSamples; i++) {
@@ -666,30 +669,23 @@ fix this error, and where specifically is the problem located? The error is: ${(
   ): Promise<string> {
     temperature = parseFloat(temperature.toFixed(2));
     // decide which model to use (40% chance to use GPT-4 when GPT-3.5 would suffice)
-    const modelInfo =
-      env.GPT4_ENABLED && (data.numInputTokens > 2000 || Math.random() < 0.4)
-        ? AI_MODELS.gpt4
-        : AI_MODELS.gpt35Turbo;
-    const modelMaxTokens = modelInfo.maxTokens;
+    const estimatedTotalContext =
+      data.numInputTokens +
+      (data.maxOutputTokens ?? Math.max(1000, 200 + data.numInputTokens * 1.5));
+    const modelInfo = getSmallestModel(estimatedTotalContext);
+    if (!modelInfo || data.numInputTokens > modelInfo.maxTokens * 0.95) {
+      throw new Error(
+        `No models have long enough context to run inference for estimated input & output context length of ${estimatedTotalContext} tokens. \n
+Please enable the unlimited-context MPT model, or debug your prompt-history (using the admin panel) to reduce the number of tokens in your prompt.`
+      );
+    }
+    // calculate max output tokens
     const completionTokensConservativeEstimate = Math.floor(
-      modelMaxTokens * 0.95 - data.numInputTokens * 0.9 - 50
+      modelInfo.maxTokens * 0.95 - data.numInputTokens * 0.9 - 50
     );
     const maxOutputTokens = data.maxOutputTokens
       ? Math.min(data.maxOutputTokens, completionTokensConservativeEstimate)
       : completionTokensConservativeEstimate;
-
-    // validate input length
-    if (data.numInputTokens > modelMaxTokens * 0.95) {
-      console.error(
-        "CANNOT REQUEST AI INFERENCE FOR INPUT CONTAINING ",
-        data.numInputTokens,
-        " TOKENS! (max combined input & output is ",
-        modelMaxTokens,
-        " tokens). Returning no data for text LLM inference request with input: ",
-        data.chatMlMessages
-      );
-      return "";
-    }
 
     // wait for rate-limiting
     const maxRetries = 400;
@@ -697,7 +693,7 @@ fix this error, and where specifically is the problem located? The error is: ${(
     while (true) {
       if (retries >= maxRetries) {
         throw new Error(
-          "COULD NOT SEND OPENAI INFERENCE REQUEST BECAUSE OF RATE-LIMITING."
+          "COULD NOT SEND AI INFERENCE REQUEST BECAUSE OF RATE-LIMITING."
         );
       }
       if (
@@ -712,7 +708,7 @@ fix this error, and where specifically is the problem located? The error is: ${(
         retries += 1;
         continue;
       }
-      // format input for OpenAI
+      // format input for ChatML
       const messages: Array<ChatCompletionRequestMessage> =
         data.chatMlMessages.map((msg) => {
           const msgParts = msg.split(":");
@@ -726,6 +722,8 @@ fix this error, and where specifically is the problem located? The error is: ${(
             ...(!isSystem && !isAssistant ? { name: roleStr } : {}),
           };
         });
+
+      // TODO IF AI_MODELS.mpt, ADD INFERENCE REQUEST TO REDIS QUEUE
 
       // call OpenAI
       const openai = new OpenAIApi(
@@ -921,7 +919,8 @@ ERROR MESSAGE: ""${openAiResponse.statusText}""    SPECIFIC ERROR MESSAGE: ""${o
     const memoryBankID = newMemoryBankID || crypto.webcrypto.randomUUID();
     this.memoryBankID = memoryBankID;
     // create schema if it doesn't exist
-    const documentClass = "Class-" + memoryBankID;
+    const documentClass =
+      db.weaviateHelp.MEMORY_BANK_CLASS_PREFIX + memoryBankID;
     try {
       await this.weaviateClient.schema
         .classCreator()

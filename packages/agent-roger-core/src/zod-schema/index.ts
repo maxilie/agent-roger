@@ -238,10 +238,9 @@ export type Neo4JTask = {
 };
 
 export type VectorDbDocument = {
-  uuid: string;
+  id: string;
   content: string;
   location: string;
-  timeString?: string;
 };
 
 export const trainingDataExampleSchema = z.object({
