@@ -59,7 +59,7 @@ const processEnv = {
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   GPT4_ENABLED: process.env.GPT4_ENABLED == "true" || false,
   MPT_ENABLED: process.env.MPT_ENABLED == "true" || false,
-  CHANCE_TO_USE_GPT4: process.env.CHANCE_TO_USE_GPT4,
+  CHANCE_TO_USE_GPT4: +process.env.CHANCE_TO_USE_GPT4,
   REDIS_HOST: process.env.REDIS_HOST,
   REDIS_PORT: +process.env.REDIS_PORT,
   REDIS_PASS: process.env.REDIS_PASS,
