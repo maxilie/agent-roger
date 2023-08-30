@@ -1,8 +1,8 @@
 import weaviate, { type WeaviateClient } from "weaviate-ts-client";
 import { env } from "../env.mjs";
 
-const MEMORY_BANK_CLASS_PREFIX = "Memory-Bank-";
-const INJECTED_PROMPTS_CLASS_NAME = "Injected-Prompts";
+const MEMORY_BANK_CLASS_PREFIX = "MemoryBank";
+const INJECTED_PROMPTS_CLASS_NAME = "InjectedPrompts";
 
 /**
  *
@@ -12,7 +12,7 @@ const INJECTED_PROMPTS_CLASS_NAME = "Injected-Prompts";
  */
 const createMemoryBankClassObj = (memoryBankID: string) => {
   return {
-    class: MEMORY_BANK_CLASS_PREFIX + memoryBankID,
+    class: MEMORY_BANK_CLASS_PREFIX + memoryBankID.replaceAll("-", ""),
     vectorizer: "none",
     properties: [
       {
@@ -50,17 +50,33 @@ const injectedPromptsClassObj = {
 
 const createWeaviateClient = (): WeaviateClient => {
   return weaviate.client({
-    scheme: "https",
+    scheme:
+      env.WEAVIATE_HOST.includes("localhost") ||
+      env.WEAVIATE_HOST.includes("host.docker.internal")
+        ? "http"
+        : "https",
     host: env.WEAVIATE_HOST,
     apiKey: new weaviate.ApiKey(env.WEAVIATE_KEY),
   });
 };
 
+// adds schema to weaviate, if it doesn't already exist
+const insertSchema = async (
+  weaviateClient: WeaviateClient,
+  classObj: object
+) => {
+  try {
+    await weaviateClient.schema.classCreator().withClass(classObj).do();
+  } catch (error) {}
+};
+
 const isConnectionValid = async (weaviateClient: WeaviateClient) => {
   try {
-    await weaviateClient.data
-      .getter()
+    await insertSchema(weaviateClient, injectedPromptsClassObj);
+    await weaviateClient.graphql
+      .get()
       .withClassName(INJECTED_PROMPTS_CLASS_NAME)
+      .withFields("userMessage")
       .withLimit(1)
       .do();
   } catch (error) {

@@ -46,7 +46,7 @@ Ensure that the steps closely follow the guidelines outlined in 'suggestedApproa
     const expectedOutputFields = {
       steps:
         "An array of strings, each explaining in plain english a step to take toward completing the task. If a step involves a file, \
-        make sure to include the file name in the step description.",
+make sure to include the file name in the step description.",
     };
     const llmOutput = await helpers.textLLM(
       assembleTextLlmInput({
@@ -79,7 +79,7 @@ Ensure that the steps closely follow the guidelines outlined in 'suggestedApproa
     Cleans up initialSteps.
   */
   expandStepInstructions: async (helpers: StageFunctionHelpers) => {
-    const steps = (await helpers.get("steps")) as string[];
+    const steps = (await helpers.get("initialSteps")) as string[];
     const contextFields = {
       howToUnderstandBroaderTask:
         "The 'tasksBefore', 'taskToModify', and 'tasksAfter' input fields should encompass all that's needed to complete the \

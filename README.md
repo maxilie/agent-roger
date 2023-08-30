@@ -149,6 +149,22 @@ yarn run start:redis
 
 NOTE: The redis database should be located as close to the task runner(s) as possible, as latency is somewhat important. The data does not need to persist.
 
+#### Local Embeddings Service
+
+To start the local embeddings service (used for embedding prompt injections):
+
+```bash
+# IMPORTANT: Match the docker container to your chip architecture below!
+
+# if you have an Apple Silicon (M1 or M2) chip
+yarn run start:local-embeddings-arm64
+
+# if you have an Intel or other x86 chip
+yarn run start:local-embeddings-amd64
+```
+
+NOTE: The embeddings service must be run on the same computer as the task runner.
+
 #### Task Runner
 
 To start a task runner:
@@ -177,7 +193,28 @@ The dashboard visualizer does not work with Brave browser's shields enabled:
 
 - Specifically, the "block fingerprinting" option disables click functionality for the dashboard's force graph.
 
-If docker fails to build, you may need to disable buildkit in your docker engine settings.
+If docker fails to build, you may need to change your docker engine settings. Try one of the following solutions:
+
+- Disable docker buildkit: Go to Docker Desktop -> Settings -> Docker Engine, and set `"features": {"buildkit": false}`.
+- Disable docker-compose V2: Go to Docker Desktop -> Settings -> General, and uncheck "Use Docker Compose V2".
+- If all else fails, try deleting your docker config: `rm  ~/.docker/config.json`.
+
+To fix file permissions that can arise for various reasons (abusing `sudo`, copying files from another computer, etc):
+
+```bash
+# INSTRUCTIONS FOR MAC & LINUX
+# FIRST, decide what <DIRECTORY> to fix. Try your desktop ("~/Desktop") directory first.
+
+# Get your <USER>
+whoami
+# Reset ownership of <DIRECTORY> to <USER>
+sudo chown -R <USER>:staff <DIRECTORY>
+# Reset ACL of <DIRECTORY>
+sudo chmod -R -N <DIRECTORY>
+# Reset file permissions of <DIRECTORY>
+sudo chmod -R 755 <DIRECTORY>
+
+```
 
 ## 🧰 Making it Yours
 

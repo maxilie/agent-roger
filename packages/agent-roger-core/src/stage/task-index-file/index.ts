@@ -467,7 +467,9 @@ export const INDEX_FILE_STAGE_FNS: { [key: string]: StageFunction } = {
       batcher = batcher.withObject(allDocuments[i]);
       objectsInBatch += 1;
       if (objectsInBatch >= batchSize || i == allDocuments.length - 1) {
-        await batcher.withConsistencyLevel("ONE").do();
+        await batcher
+          // .withConsistencyLevel("ONE")
+          .do();
         batcher = helpers.weaviateClient.batch.objectsBatcher();
       }
     }

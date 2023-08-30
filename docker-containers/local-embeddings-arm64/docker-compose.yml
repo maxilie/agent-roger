@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  web:
+    build: .
+    ports:
+      - "699:699"
+    volumes:
+      - ./app:/app
+    env_file:
+      - ../../.env

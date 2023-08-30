@@ -4,10 +4,9 @@ import {
   env,
   schema,
   type InjectedPrompt,
-  TextLlmInput,
+  type TextLlmInput,
   getNumTokens,
 } from "agent-roger-core";
-import { newInjectedPrompts } from "agent-roger-core/dist/db";
 import { and, eq, gt } from "drizzle-orm";
 import { type WeaviateClient } from "weaviate-ts-client";
 import { distance as levDistance } from "fastest-levenshtein";
@@ -243,18 +242,17 @@ const fetchEmbeddingResult = async (
   shortenedUserMsg: string
 ): Promise<EmbeddingApiResponse> => {
   try {
-    const response = await fetch(
-      "http://host.docker.internal:699/embedParagraph/",
-      {
-        method: "GET",
-        headers: {
-          Authorization: env.SHORT_EMBEDDINGS_API_KEY,
-        },
-        body: new URLSearchParams({
-          text: shortenedUserMsg,
-        }),
-      }
-    );
+    const url = new URL("http://host.docker.internal:699/embedParagraph/");
+    url.search = new URLSearchParams({
+      text: shortenedUserMsg,
+    }).toString();
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: env.SHORT_EMBEDDINGS_API_KEY,
+      },
+    });
 
     if (!response.ok) {
       return {
@@ -314,7 +312,7 @@ export const initInjectedPrompts = async (weaviateClient: WeaviateClient) => {
         .withFields("userMessage assistantMessage _additional { id }")
         .withLimit(batchSizeWeaviate)
         .withAfter(lastDocID)
-        .withConsistencyLevel("ONE")
+        // .withConsistencyLevel("ONE")
         .do()) as WeaviateResponseTypeGET;
       const className = db.weaviateHelp.INJECTED_PROMPTS_CLASS_NAME;
       documents = Array.isArray(response?.data?.GET?.[className])
@@ -418,7 +416,7 @@ export const initInjectedPrompts = async (weaviateClient: WeaviateClient) => {
         .deleter()
         .withClassName(db.weaviateHelp.INJECTED_PROMPTS_CLASS_NAME)
         .withId(weaviateID)
-        .withConsistencyLevel("ONE")
+        // .withConsistencyLevel("ONE")
         .do();
     };
     deleteDocPromises.push(createDeletionPromise());
@@ -574,7 +572,9 @@ The weaviate database may now be out of sync with the SQL database."
       objectsInBatch >= batchSizeWeaviate ||
       i == newWeaviateObjects.length - 1
     ) {
-      await batcher.withConsistencyLevel("ONE").do();
+      await batcher
+        // .withConsistencyLevel("ONE")
+        .do();
       batcher = weaviateClient.batch.objectsBatcher();
     }
   }
@@ -661,7 +661,7 @@ The weaviate database may now be out of sync with the SQL database."
             },
           ],
         })
-        .withConsistencyLevel("ONE")
+        // .withConsistencyLevel("ONE")
         .do()) as WeaviateResponseTypeGET;
 
       // if prompt found in weaviate, remove from newInjectedPrompts and continue
@@ -675,7 +675,7 @@ The weaviate database may now be out of sync with the SQL database."
         if (matchedWeaviateObjects.length == 0) break;
         await db.sqlClient
           .delete(db.newInjectedPrompts)
-          .where(eq(newInjectedPrompts.id, promptData.newInjectedPromptsID));
+          .where(eq(db.newInjectedPrompts.id, promptData.newInjectedPromptsID));
         continue;
       }
     } catch (err) {
@@ -734,7 +734,7 @@ The weaviate database may now be out of sync with the SQL database."
     try {
       await db.sqlClient
         .delete(db.newInjectedPrompts)
-        .where(eq(newInjectedPrompts.id, promptData.newInjectedPromptsID));
+        .where(eq(db.newInjectedPrompts.id, promptData.newInjectedPromptsID));
     } catch (err) {
       console.error("Error deleting prompt from newInjectedPrompts table:");
       console.error(err);
@@ -789,7 +789,7 @@ export const findSimilarInjectedPrompts = async (
         vector: queryVector,
         certainty: 0.8,
       })
-      .withConsistencyLevel("ONE")
+      // .withConsistencyLevel("ONE")
       .withLimit(10)
       .do()) as WeaviateResponseTypeGET;
     if (
