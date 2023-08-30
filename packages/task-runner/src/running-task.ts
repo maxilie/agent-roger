@@ -35,6 +35,7 @@ import {
   type CreateEmbeddingResponseDataInner,
 } from "openai";
 import { eq } from "drizzle-orm";
+import { addPromptInjections } from "./injected-prompt-fns.js";
 
 // instead of saving every action to SQL, run for up to 10 seconds
 // ...and then save results to SQL if the task wasn't updated (by the dashboard user) in the meantime
@@ -376,10 +377,10 @@ class RunningTask {
     // concurrently process multiple samples with different temperatures
     const promises = [];
     for (let i = 0; i < numHighTempSamples; i++) {
-      promises.push(this.generateAndRateLlmSample(data, 0.65, 0.75));
+      promises.push(this.generateAndRateLlmSample_Retry(data, 0.65, 0.75, 3));
     }
     for (let i = 0; i < numLowTempSamples; i++) {
-      promises.push(this.generateAndRateLlmSample(data, 0.48, 0.58));
+      promises.push(this.generateAndRateLlmSample_Retry(data, 0.48, 0.58, 3));
     }
     const results = await Promise.allSettled(promises);
     // get highest-rated sample
@@ -387,10 +388,10 @@ class RunningTask {
     let bestRating = -1;
     for (const result of results) {
       if (result.status === "rejected") {
-        // console.log(
-        //   "failed to generate a sample & rating from the llm: ",
-        //   result.reason
-        // );
+        console.log(
+          "failed to generate a sample & rating from the llm: ",
+          result.reason
+        );
         continue;
       }
       const output = result.value.output;
@@ -401,6 +402,8 @@ class RunningTask {
     }
     // ensure at least one result was generated
     if (!bestResult) {
+      console.log("Samples from failed textLlm for input: ");
+      console.log(data.chatMlMessages);
       throw new Error(
         "Failed to generate any samples with ratings from the LLM. Please try again."
       );
@@ -428,6 +431,42 @@ class RunningTask {
     return bestResult;
   }
 
+  async generateAndRateLlmSample_Retry(
+    data: TextLlmInput,
+    minTemperature: number,
+    maxTemperature: number,
+    retriesRemaining: number
+  ): Promise<{ output: JsonObj; rating: number }> {
+    try {
+      return await this.generateAndRateLlmSample(
+        data,
+        minTemperature,
+        maxTemperature
+      );
+    } catch (err) {
+      // failed to generate sample
+      if (this.wasPaused) {
+        throw new Error("Task was paused while trying to query the LLM.");
+      }
+      console.log(err);
+      console.log("Failed to generate llm sample. Retrying...");
+      if (retriesRemaining > 0) {
+        // wait 2-60 seconds
+        const waitTime = 2000 + Math.random() * 60000;
+        await new Promise((r) => setTimeout(r, waitTime));
+        // retry to generate a sample
+        return await this.generateAndRateLlmSample_Retry(
+          data,
+          minTemperature,
+          maxTemperature,
+          retriesRemaining - 1
+        );
+      } else {
+        throw new Error("Failed to generate llm sample after retrying");
+      }
+    }
+  }
+
   /**
    * Generates json, then makes an observation about it, improves it, and rates its quality on a scale from 1 to 10.
    */
@@ -440,6 +479,9 @@ class RunningTask {
       minTemperature + Math.random() * (maxTemperature - minTemperature);
     // generate initial json
     const initialSampleJson = await this.getTextLlmJson(data, temperature);
+    if (this.wasPaused) {
+      throw new Error("Task was paused while trying to query the LLM.");
+    }
     // make an observation
     const initialInputMinusSystemMsg = data.chatMlMessages.slice(1).join("\n");
     const observationLlmPrompt =
@@ -463,6 +505,9 @@ ${JSON.stringify(initialSampleJson)}`,
       observationLlmInput,
       temperature
     );
+    if (this.wasPaused) {
+      throw new Error("Task was paused while trying to query the LLM.");
+    }
     // improve json based on the observation
     let improvedSampleJson = initialSampleJson;
     if (observationStr.length > 40) {
@@ -494,6 +539,9 @@ ${JSON.stringify(
         improvementLlmInput,
         temperature
       );
+    }
+    if (this.wasPaused) {
+      throw new Error("Task was paused while trying to query the LLM.");
     }
     // rate the quality of the json
     const ratingLlmPrompt =
@@ -562,6 +610,10 @@ ${JSON.stringify(improvedSampleJson)}`,
         throw new Error("No output received from first llm call");
       }
 
+      if (this.wasPaused) {
+        throw new Error("Task was paused while trying to query the LLM.");
+      }
+
       // run first output through the llm to fix formatting
       const secondPrompt =
         "System: You are a highly logical, careful, and thorough JSON input/output machine. You can only output properly formatted \
@@ -586,6 +638,10 @@ sure it can be parsed by JSON.parse().\
       });
       secondLlmInput.chatMlMessages = [secondPrompt, "User: " + firstOutput];
       secondOutput = await this.getTextLlmString(secondLlmInput, temperature);
+
+      if (this.wasPaused) {
+        throw new Error("Task was paused while trying to query the LLM.");
+      }
 
       // parse llm output
       secondOutput = secondOutput.trim();
@@ -632,6 +688,9 @@ fix this error, and where specifically is the problem located? The error is: ${(
           thirdLlmInput,
           temperature
         );
+        if (this.wasPaused) {
+          throw new Error("Task was paused while trying to query the LLM.");
+        }
         const fourthLlmInput = assembleTextLlmInput({
           prompt: { t: firstOutput, tt: problemAndSolutionStr },
           expectedOutputFields: {},
@@ -645,6 +704,9 @@ fix this error, and where specifically is the problem located? The error is: ${(
           fourthLlmInput,
           temperature
         );
+        if (this.wasPaused) {
+          throw new Error("Task was paused while trying to query the LLM.");
+        }
         parsedJson = schema.jsonObj.parse(JSON.parse(fourthOutput.trim()));
       }
 
@@ -660,6 +722,28 @@ fix this error, and where specifically is the problem located? The error is: ${(
         `Failed to generate llm json: ${(error as Error).toString()}`
       );
     }
+  }
+
+  // wrapper for `getTextLlmString` that injects similar prompts & responses into the llm input
+  async getTextLlmStringWithInjectedPrompts(
+    data: TextLlmInput,
+    temperature: number
+  ): Promise<string> {
+    // ensure input only has a system message and a user message
+    if (data.chatMlMessages.length != 2) {
+      console.warn(`Tried to inject prompts into llm input with ${data.chatMlMessages.length} messages. Prompt injection \
+only works for inputs containing a single system message and a single user message.`);
+      return await this.getTextLlmString(data, temperature);
+    }
+    // add prompt injections and query llm
+    const inputWithExamples = await addPromptInjections(
+      data,
+      this.weaviateClient
+    );
+    if (this.wasPaused) {
+      throw new Error("Task was paused while trying to query the LLM.");
+    }
+    return await this.getTextLlmString(inputWithExamples, temperature);
   }
 
   // generates llm output
@@ -691,6 +775,9 @@ Please enable the unlimited-context MPT model, or debug your prompt-history (usi
     const maxRetries = 400;
     let retries = 0;
     while (true) {
+      if (this.wasPaused) {
+        throw new Error("Task was paused while trying to query the LLM.");
+      }
       if (retries >= maxRetries) {
         throw new Error(
           "COULD NOT SEND AI INFERENCE REQUEST BECAUSE OF RATE-LIMITING."
@@ -703,7 +790,7 @@ Please enable the unlimited-context MPT model, or debug your prompt-history (usi
         )
       ) {
         await new Promise((resolve) =>
-          setTimeout(resolve, 10 + Math.random() * 30)
+          setTimeout(resolve, 1000 + Math.random() * 30000)
         );
         retries += 1;
         continue;
@@ -723,7 +810,7 @@ Please enable the unlimited-context MPT model, or debug your prompt-history (usi
           };
         });
 
-      // TODO IF AI_MODELS.mpt, ADD INFERENCE REQUEST TO REDIS QUEUE
+      // TODO IF env.NEXT_PUBLIC_MPT_ENABLED, ADD INFERENCE REQUEST TO REDIS QUEUE
 
       // call OpenAI
       const openai = new OpenAIApi(
@@ -741,6 +828,18 @@ Please enable the unlimited-context MPT model, or debug your prompt-history (usi
         // see: https://platform.openai.com/docs/api-reference/chat/create?lang=node.js
         const response = await openai.createChatCompletion(requestConfig);
         outputStr = response.data.choices[0].message?.content ?? "";
+
+        // add example to list of input & output to save later
+        if (messages.length >= 2) {
+          this.unsavedPromptHistory.push({
+            taskID: this.taskID,
+            systemMessage: messages[0].content,
+            userMessage: messages[1].content,
+            assistantMessage: outputStr,
+            timestamp: new Date(),
+          });
+        }
+
         return outputStr;
       } catch (err) {
         try {
@@ -753,9 +852,12 @@ Please enable the unlimited-context MPT model, or debug your prompt-history (usi
               };
             }
           ).response;
+          if (this.wasPaused) {
+            throw new Error("Task was paused while trying to query the LLM.");
+          }
           if (openAiResponse.status == 429) {
             await new Promise((resolve) =>
-              setTimeout(resolve, 30 + Math.random() * 60)
+              setTimeout(resolve, 6000 + Math.random() * 60000)
             );
             retries += 1;
             continue;
@@ -809,7 +911,7 @@ ERROR MESSAGE: ""${openAiResponse.statusText}""    SPECIFIC ERROR MESSAGE: ""${o
       )
     ) {
       await new Promise((resolve) =>
-        setTimeout(resolve, 2 + Math.random() * 20)
+        setTimeout(resolve, 2000 + Math.random() * 20000)
       );
       retries += 1;
     }

@@ -6,6 +6,7 @@ import {
   type InjectedPrompt,
   type TextLlmInput,
   getNumTokens,
+  getLargestModel,
 } from "agent-roger-core";
 import { and, eq, gt } from "drizzle-orm";
 import { type WeaviateClient } from "weaviate-ts-client";
@@ -927,9 +928,12 @@ export const addPromptInjections = async (
     data.maxOutputTokens ?? 1500,
     avgAssistantMsgLength * 1.2
   );
-  // get context length of the model
-  const modelMaxLength = 1;
-  // inject similar prompts while contextLength < inputLength + minOutputLength
+  // get context length of the largest model
+  const largestModel = getLargestModel();
+  const modelMaxLength = largestModel
+    ? largestModel.maxTokens
+    : data.numInputTokens + (data.maxOutputTokens || 500);
+  // inject similar prompts until token limit is reached
   let totalInputTokens = data.numInputTokens;
   const chatMlMessages = [data.chatMlMessages[0]];
   for (const similarPrompt of similarPrompts) {

@@ -24,9 +24,11 @@ export const getSmallestModel = (minContextLength: number): AiModel | null => {
   // find shortest model that can handle the context length
   let shortestSufficientModelInfo: AiModel | null = null;
   for (const modelInfo of Object.values(AI_MODELS)) {
-    if (modelInfo.maxTokens < minContextLength) continue;
-    if (modelInfo.id == AI_MODELS.mpt.id && !env.MPT_ENABLED) continue;
-    if (modelInfo.id == AI_MODELS.gpt4.id && !env.GPT4_ENABLED) continue;
+    if (modelInfo.maxTokens < minContextLength + 500) continue;
+    if (modelInfo.id == AI_MODELS.mpt.id && !env.NEXT_PUBLIC_MPT_ENABLED)
+      continue;
+    if (modelInfo.id == AI_MODELS.gpt4.id && !env.NEXT_PUBLIC_GPT4_ENABLED)
+      continue;
     if (
       !shortestSufficientModelInfo ||
       modelInfo.maxTokens < shortestSufficientModelInfo.maxTokens
@@ -35,17 +37,36 @@ export const getSmallestModel = (minContextLength: number): AiModel | null => {
     }
   }
   if (!shortestSufficientModelInfo) {
-    return env.MPT_ENABLED ? AI_MODELS.mpt : null;
+    return env.NEXT_PUBLIC_MPT_ENABLED ? AI_MODELS.mpt : null;
   }
   // when a cheap model could suffice, randomly decide to use GPT-4 instead
   if (
-    minContextLength < AI_MODELS.gpt4.maxTokens &&
-    env.GPT4_ENABLED &&
-    Math.random() < env.CHANCE_TO_USE_GPT4
+    minContextLength < AI_MODELS.gpt4.maxTokens + 500 &&
+    env.NEXT_PUBLIC_GPT4_ENABLED &&
+    Math.random() < env.NEXT_PUBLIC_CHANCE_TO_USE_GPT4
   ) {
     return AI_MODELS.gpt4;
   }
   return shortestSufficientModelInfo;
+};
+
+/**
+ * Returns the largest-context AiModel available.
+ */
+export const getLargestModel = (): AiModel | null => {
+  let largestModel = null;
+  let largestContextLength = 0;
+  for (const modelInfo of Object.values(AI_MODELS)) {
+    if (modelInfo.id == AI_MODELS.mpt.id && !env.NEXT_PUBLIC_MPT_ENABLED)
+      continue;
+    if (modelInfo.id == AI_MODELS.gpt4.id && !env.NEXT_PUBLIC_GPT4_ENABLED)
+      continue;
+    if (!largestModel || modelInfo.maxTokens > largestContextLength) {
+      largestModel = modelInfo;
+      largestContextLength = modelInfo.maxTokens;
+    }
+  }
+  return largestModel;
 };
 
 export const textLlmInputSchema = z.object({
