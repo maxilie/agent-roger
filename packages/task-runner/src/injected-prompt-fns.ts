@@ -243,7 +243,7 @@ const fetchEmbeddingResult = async (
   shortenedUserMsg: string
 ): Promise<EmbeddingApiResponse> => {
   try {
-    const url = new URL("http://host.docker.internal:699/embedParagraph/");
+    const url = new URL(env.LOCAL_EMBEDDINGS_URL);
     url.search = new URLSearchParams({
       text: shortenedUserMsg,
     }).toString();

@@ -47,7 +47,7 @@ async def get_api_key(api_key_header: str = Depends(api_key_header)):
     return api_key_header
 
 
-@app.post("/embedParagraph/", response_model=EmbeddingOutput)
+@app.get("/embedParagraph/", response_model=EmbeddingOutput)
 async def embed_paragraph(text: str, api_key: str = Depends(get_api_key)):
     start_time = time.time()
     try:

@@ -29,7 +29,8 @@ export class RateLimiter {
     const debug = true;
     const currentMinute = this.currentMinute();
     // get tokens used by this model and all models with shared limits
-    const tokensUsed = newTokens + this.tokens[modelInfo.id][currentMinute];
+    const tokensUsed =
+      newTokens + (this.tokens[modelInfo.id][currentMinute] ?? 0);
     let sharedTokensUsed = tokensUsed;
     let maxSharedTokensPerMin = modelInfo.rateLimits?.tokensPerMinute ?? 0;
     const sharedLimitModelIDs = modelInfo.rateLimits?.sharedLimits ?? [];
@@ -46,7 +47,7 @@ export class RateLimiter {
       (modelInfo.rateLimits?.tokensPerMinute ?? 0) > 0 &&
       (tokensUsed >= (modelInfo.rateLimits?.tokensPerMinute ?? 0) ||
         sharedTokensUsed >= maxSharedTokensPerMin);
-    if (debug) {
+    if (debug && isTokensLimitReached) {
       console.log(
         `reached tokens limit for ${
           modelInfo.id
@@ -59,7 +60,7 @@ export class RateLimiter {
     }
 
     // get requests used by this model and all models with shared limits
-    const requestsMade = 1 + this.requests[modelInfo.id][currentMinute];
+    const requestsMade = 1 + (this.requests[modelInfo.id][currentMinute] ?? 0);
     let sharedRequestsMade = requestsMade;
     let maxSharedRequestsPerMin = modelInfo.rateLimits?.requestsPerMinute ?? 0;
     for (const otherModelName in AI_MODELS) {
@@ -76,7 +77,7 @@ export class RateLimiter {
       (modelInfo.rateLimits?.requestsPerMinute ?? 0) > 0 &&
       (requestsMade >= (modelInfo.rateLimits?.requestsPerMinute ?? 0) ||
         sharedRequestsMade >= maxSharedRequestsPerMin);
-    if (debug) {
+    if (debug && isRequestsLimitReached) {
       console.log(
         `reached requests limit for ${modelInfo.id}. requests made (${
           this.requests[modelInfo.id][currentMinute]

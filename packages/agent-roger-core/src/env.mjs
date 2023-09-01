@@ -24,6 +24,7 @@ const server = z.object({
   REDIS_HOST: z.string(),
   REDIS_PORT: z.number(),
   REDIS_PASS: z.string(),
+  LOCAL_EMBEDDINGS_URL: z.string(),
   SHORT_EMBEDDINGS_API_KEY: z.string(),
 });
 
@@ -70,6 +71,7 @@ const processEnv = {
   REDIS_HOST: process.env.REDIS_HOST,
   REDIS_PORT: +process.env.REDIS_PORT,
   REDIS_PASS: process.env.REDIS_PASS,
+  LOCAL_EMBEDDINGS_URL: process.env.LOCAL_EMBEDDINGS_URL,
   SHORT_EMBEDDINGS_API_KEY: process.env.SHORT_EMBEDDINGS_API_KEY,
 };
 

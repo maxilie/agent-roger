@@ -60,6 +60,7 @@ class RunningTask {
   memoryBankID: "global" | string | null;
   unsavedPromptHistory: HistoricalAiCall[];
   wasRestartedWhileRunning: boolean;
+  databaseCheckerRunning: boolean;
 
   constructor(
     taskID: number,
@@ -88,6 +89,7 @@ class RunningTask {
     this.memoryBankID = null;
     this.unsavedPromptHistory = [];
     this.wasRestartedWhileRunning = false;
+    this.databaseCheckerRunning = true;
   }
 
   async runNextStages() {
@@ -132,7 +134,10 @@ class RunningTask {
           );
       }
 
-      // for up to 10 seconds...
+      // start checking database every 6 seconds to interrupt stage function if task was updated
+      this.startDatabaseCheck();
+
+      // for up to 10 seconds (unless a stage needs more time)...
       while (
         !this.isTaskFinished() &&
         new Date().getTime() - this.startTime.getTime() < 1000 * MAX_RUN_SECS
@@ -183,6 +188,7 @@ class RunningTask {
             return;
           }
 
+          // get helper functions & data
           const helpers: StageFunctionHelpers = {
             initialInputFields: task.initialInputFields || {},
             initialContextFields: task.initialContextFields || {},
@@ -254,7 +260,9 @@ class RunningTask {
         }
       }
 
-      // after running stages for up to 10 seconds...
+      // after running stage functions...
+      // stop pinging database to check for interruptions
+      this.databaseCheckerRunning = false;
       // save data
       await this.saveOrCleanup();
 
@@ -276,6 +284,36 @@ class RunningTask {
   }
 
   /**
+   * Checks if the task was updated while running. If so, sets `this.wasPaused = true`.
+   */
+  startDatabaseCheck() {
+    const scheduleCheck = (fn: () => Promise<void>, delay: number) => {
+      if (!this.databaseCheckerRunning) return;
+      setTimeout(() => {
+        if (!this.databaseCheckerRunning) return;
+        fn().catch((err) => console.error(err));
+      }, delay);
+    };
+
+    const checkAsync = async () => {
+      if (!this.databaseCheckerRunning) return;
+
+      const lastInteractionMarker = await db.getLastInteractionMarker(
+        this.taskID
+      );
+      if (lastInteractionMarker != this.taskBasicData?.lastInteractionMarker) {
+        this.wasPaused = true;
+        this.databaseCheckerRunning = false;
+        return;
+      }
+
+      scheduleCheck(checkAsync, 6000);
+    };
+
+    scheduleCheck(checkAsync, 6000);
+  }
+
+  /**
    * @returns true if task was paused, task was restarted, last stage was ended, or resultData was set
    */
   isTaskFinished() {
@@ -294,6 +332,7 @@ class RunningTask {
    * Undoes any changes we just made.
    */
   async cleanup() {
+    this.databaseCheckerRunning = false;
     try {
       for (const subTaskID of this.unsavedSubTaskIDs) {
         await db.deleteTaskTree({ taskID: subTaskID }, this.neo4jDriver);
@@ -445,7 +484,7 @@ class RunningTask {
       );
     } catch (err) {
       // failed to generate sample
-      if (this.wasPaused) {
+      if (this.wasPaused || this.wasRestartedWhileRunning) {
         throw new Error("Task was paused while trying to query the LLM.");
       }
       console.log(err);
@@ -479,7 +518,7 @@ class RunningTask {
       minTemperature + Math.random() * (maxTemperature - minTemperature);
     // generate initial json
     const initialSampleJson = await this.getTextLlmJson(data, temperature);
-    if (this.wasPaused) {
+    if (this.wasPaused || this.wasRestartedWhileRunning) {
       throw new Error("Task was paused while trying to query the LLM.");
     }
     // make an observation
@@ -505,7 +544,7 @@ ${JSON.stringify(initialSampleJson)}`,
       observationLlmInput,
       temperature
     );
-    if (this.wasPaused) {
+    if (this.wasPaused || this.wasRestartedWhileRunning) {
       throw new Error("Task was paused while trying to query the LLM.");
     }
     // improve json based on the observation
@@ -540,7 +579,7 @@ ${JSON.stringify(
         temperature
       );
     }
-    if (this.wasPaused) {
+    if (this.wasPaused || this.wasRestartedWhileRunning) {
       throw new Error("Task was paused while trying to query the LLM.");
     }
     // rate the quality of the json
@@ -610,7 +649,7 @@ ${JSON.stringify(improvedSampleJson)}`,
         throw new Error("No output received from first llm call");
       }
 
-      if (this.wasPaused) {
+      if (this.wasPaused || this.wasRestartedWhileRunning) {
         throw new Error("Task was paused while trying to query the LLM.");
       }
 
@@ -639,7 +678,7 @@ sure it can be parsed by JSON.parse().\
       secondLlmInput.chatMlMessages = [secondPrompt, "User: " + firstOutput];
       secondOutput = await this.getTextLlmString(secondLlmInput, temperature);
 
-      if (this.wasPaused) {
+      if (this.wasPaused || this.wasRestartedWhileRunning) {
         throw new Error("Task was paused while trying to query the LLM.");
       }
 
@@ -688,7 +727,7 @@ fix this error, and where specifically is the problem located? The error is: ${(
           thirdLlmInput,
           temperature
         );
-        if (this.wasPaused) {
+        if (this.wasPaused || this.wasRestartedWhileRunning) {
           throw new Error("Task was paused while trying to query the LLM.");
         }
         const fourthLlmInput = assembleTextLlmInput({
@@ -704,7 +743,7 @@ fix this error, and where specifically is the problem located? The error is: ${(
           fourthLlmInput,
           temperature
         );
-        if (this.wasPaused) {
+        if (this.wasPaused || this.wasRestartedWhileRunning) {
           throw new Error("Task was paused while trying to query the LLM.");
         }
         parsedJson = schema.jsonObj.parse(JSON.parse(fourthOutput.trim()));
@@ -740,7 +779,7 @@ only works for inputs containing a single system message and a single user messa
       data,
       this.weaviateClient
     );
-    if (this.wasPaused) {
+    if (this.wasPaused || this.wasRestartedWhileRunning) {
       throw new Error("Task was paused while trying to query the LLM.");
     }
     return await this.getTextLlmString(inputWithExamples, temperature);
@@ -775,7 +814,7 @@ Please enable the unlimited-context MPT model, or debug your prompt-history (usi
     const maxRetries = 400;
     let retries = 0;
     while (true) {
-      if (this.wasPaused) {
+      if (this.wasPaused || this.wasRestartedWhileRunning) {
         throw new Error("Task was paused while trying to query the LLM.");
       }
       if (retries >= maxRetries) {
@@ -852,7 +891,7 @@ Please enable the unlimited-context MPT model, or debug your prompt-history (usi
               };
             }
           ).response;
-          if (this.wasPaused) {
+          if (this.wasPaused || this.wasRestartedWhileRunning) {
             throw new Error("Task was paused while trying to query the LLM.");
           }
           if (openAiResponse.status == 429) {
@@ -1164,6 +1203,7 @@ ERROR MESSAGE: ""${openAiResponse.statusText}""    SPECIFIC ERROR MESSAGE: ""${o
    * is called to delete any newly created sub-tasks.
    */
   async saveOrCleanup() {
+    this.databaseCheckerRunning = false;
     if (this.wasRestartedWhileRunning) return;
     try {
       // don't save if nothing changed
