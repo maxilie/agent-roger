@@ -27,7 +27,7 @@ type WeaviateInjectedPromptDoc = {
 
 type WeaviateResponseTypeGET = {
   data: {
-    GET: {
+    Get: {
       [key: string]: WeaviateInjectedPromptDoc[];
     };
   };
@@ -75,8 +75,8 @@ const _reduceString = (strToReduce: string, maxLen: number): string => {
   while (strToReduce.length > maxLen) {
     // length of the piece to cut grows smaller at each iteration
     const cutLen = Math.min(
-      60,
-      Math.max(Math.floor(strToReduce.length / 3), 5)
+      70,
+      Math.max(Math.floor(strToReduce.length / 3.5), 11)
     );
 
     // determine the start of the cut ensuring we have room on both sides of the cut
@@ -96,8 +96,12 @@ const _fieldsToTruncate = ["context", "suggested", "example"];
 
 /**
  * Preprocesses an injected prompt user message into a paragraph string.
+ * WARNING: This function mutates the input object.
  */
-const _preprocessJson = (input: JsonObj, parentKeys: string[] = []): string => {
+export const _preprocessJson = (
+  input: JsonObj,
+  parentKeys: string[] = []
+): string => {
   Object.keys(input).forEach((key) => {
     const value = input[key];
     const keyLower = key.toLowerCase();
@@ -124,7 +128,7 @@ const _preprocessJson = (input: JsonObj, parentKeys: string[] = []): string => {
           input[key] = valueStr.slice(0, 13) + "..";
         }
       } else {
-        input[key] = _reduceString(valueStr, 70);
+        input[key] = _reduceString(valueStr, 90);
       }
     }
   });
@@ -135,7 +139,7 @@ const _preprocessJson = (input: JsonObj, parentKeys: string[] = []): string => {
     .replace(/\s\s+/g, " ")
     .trim();
 
-  return _reduceString(flattenedReducedJsonStr, 300);
+  return _reduceString(flattenedReducedJsonStr, 500);
 };
 
 /**
@@ -239,7 +243,7 @@ const getShortenedVals = (jsonInput: JsonObj): string[] => {
  *
  * @returns A semantic embedding vector or an error response from the local embeddings api.
  */
-const fetchEmbeddingResult = async (
+export const fetchLocalEmbeddingResult = async (
   shortenedUserMsg: string
 ): Promise<EmbeddingApiResponse> => {
   try {
@@ -316,8 +320,8 @@ export const initInjectedPrompts = async (weaviateClient: WeaviateClient) => {
         // .withConsistencyLevel("ONE")
         .do()) as WeaviateResponseTypeGET;
       const className = db.weaviateHelp.INJECTED_PROMPTS_CLASS_NAME;
-      documents = Array.isArray(response?.data?.GET?.[className])
-        ? response.data.GET[className]
+      documents = Array.isArray(response?.data?.Get?.[className])
+        ? response.data.Get[className]
         : [];
       if (!documents.length) break;
     } catch (e) {
@@ -516,7 +520,7 @@ The weaviate database may now be out of sync with the SQL database."
       const embedDataPoint = async (
         dataToEmbed: PromptToEmbed
       ): Promise<EmbeddedPromptData | null> => {
-        const response = await fetchEmbeddingResult(
+        const response = await fetchLocalEmbeddingResult(
           dataToEmbed.shortenedUserMsg
         );
         if (!response.vector) {
@@ -595,19 +599,24 @@ The weaviate database may now be out of sync with the SQL database."
 };
 
 /**
- * Merges injected prompts from the newInjectedPrompts SQL table into weaviate.
+ *
+ * @returns A list of all prompts from the newInjectedPrompts table.
  */
-export const mergeNewInjectedPrompts = async (
-  weaviateClient: WeaviateClient
-) => {
-  // get prompts from newInjectedPrompts table
+export const getAllNewInjectedPrompts = async (): Promise<
+  {
+    newInjectedPromptsID: number;
+    userMessage: string;
+    assistantMessage: string;
+    numTokens: number;
+  }[]
+> => {
   const newPromptsToProcess: {
     newInjectedPromptsID: number;
     userMessage: string;
     assistantMessage: string;
     numTokens: number;
   }[] = [];
-  const lastRowID = -1;
+  let lastRowID = -1;
   let pauses = 0;
   while (true) {
     try {
@@ -617,6 +626,7 @@ export const mergeNewInjectedPrompts = async (
         .where(gt(db.newInjectedPrompts.id, lastRowID))
         .limit(batchSizeSQL);
       promptInjectionDatas.forEach((promptInjectionData) => {
+        lastRowID = Math.max(lastRowID, promptInjectionData.id);
         newPromptsToProcess.push({
           newInjectedPromptsID: promptInjectionData.id,
           userMessage: promptInjectionData.userMessage,
@@ -638,95 +648,143 @@ The weaviate database may now be out of sync with the SQL database."
       break;
     }
   }
+  return newPromptsToProcess;
+};
+
+/**
+ *
+ * Returns true if the prompt was found in weaviate, false otherwise.
+ */
+
+export const checkPromptExistsInWeaviate = async (
+  weaviateClient: WeaviateClient,
+  promptData: { userMessage: string; assistantMessage: string }
+): Promise<boolean> => {
+  try {
+    const response = (await weaviateClient.graphql
+      .get()
+      .withClassName(db.weaviateHelp.INJECTED_PROMPTS_CLASS_NAME)
+      .withFields("userMessage assistantMessage _additional { id }")
+      .withWhere({
+        operator: "And",
+        operands: [
+          {
+            operator: "Equal",
+            path: ["userMessage"],
+            valueText: promptData.userMessage,
+          },
+          {
+            operator: "Equal",
+            path: ["assistantMessage"],
+            valueText: promptData.assistantMessage,
+          },
+        ],
+      })
+      // .withConsistencyLevel("ONE")
+      .do()) as WeaviateResponseTypeGET;
+
+    if (
+      response.data &&
+      response.data.Get &&
+      db.weaviateHelp.INJECTED_PROMPTS_CLASS_NAME in response.data.Get
+    ) {
+      const matchedWeaviateObjects =
+        response.data.Get[db.weaviateHelp.INJECTED_PROMPTS_CLASS_NAME];
+      if (matchedWeaviateObjects.length > 0) return true;
+    }
+    return false;
+  } catch (err) {
+    console.error(
+      `Error checking whether an injected prompt exists in weaviate:`
+    );
+    throw err;
+  }
+};
+
+/**
+ *
+ * Saves an injected prompt to weaviate.
+ */
+export const embedAndSaveInjectedPromptToWeaviate = async (
+  weaviateClient: WeaviateClient,
+  promptData: {
+    userMessage: string;
+    assistantMessage: string;
+    numTokens: number;
+  }
+) => {
+  // embed prompt
+  let embeddedPromptData: EmbeddingApiResponse;
+  try {
+    const userMsgJson = schema.jsonObj.parse(
+      JSON.parse(promptData.userMessage)
+    );
+    embeddedPromptData = await fetchLocalEmbeddingResult(
+      _preprocessJson(userMsgJson)
+    );
+    if (!embeddedPromptData.vector) {
+      throw new Error(
+        `Error generating semantic embedding: ${
+          embeddedPromptData.errorMessage ?? "empty error message"
+        }`
+      );
+    }
+  } catch (err) {
+    console.error(
+      `Error processing & embedding a new injected prompt to store in weaviate:`
+    );
+    throw err;
+  }
+
+  // save prompt in weaviate
+  try {
+    await weaviateClient.data
+      .creator()
+      .withClassName(db.weaviateHelp.INJECTED_PROMPTS_CLASS_NAME)
+      .withProperties({
+        userMessage: promptData.userMessage,
+        assistantMessage: promptData.assistantMessage,
+        numTokens: promptData.numTokens,
+      })
+      .withVector(embeddedPromptData.vector)
+      .do();
+  } catch (err) {
+    console.error(
+      "Error creating a new object in weaviate for a new injected prompt:"
+    );
+    throw err;
+  }
+};
+
+/**
+ * Merges injected prompts from the newInjectedPrompts SQL table into weaviate.
+ */
+export const mergeNewInjectedPrompts = async (
+  weaviateClient: WeaviateClient
+) => {
+  // get prompts from newInjectedPrompts table
+  const newPromptsToProcess = await getAllNewInjectedPrompts();
 
   // add each prompt to weaviate if not already there...
   for (const promptData of newPromptsToProcess) {
     // check if prompt is in weaviate
     try {
-      const response = (await weaviateClient.graphql
-        .get()
-        .withClassName(db.weaviateHelp.INJECTED_PROMPTS_CLASS_NAME)
-        .withFields("userMessage assistantMessage _additional { id }")
-        .withWhere({
-          operator: "And",
-          operands: [
-            {
-              operator: "Equal",
-              path: ["userMessage"],
-              valueText: promptData.userMessage,
-            },
-            {
-              operator: "Equal",
-              path: ["assistantMessage"],
-              valueText: promptData.assistantMessage,
-            },
-          ],
-        })
-        // .withConsistencyLevel("ONE")
-        .do()) as WeaviateResponseTypeGET;
-
-      // if prompt found in weaviate, remove from newInjectedPrompts and continue
-      if (
-        response.data &&
-        response.data.GET &&
-        db.weaviateHelp.INJECTED_PROMPTS_CLASS_NAME in response.data.GET
-      ) {
-        const matchedWeaviateObjects =
-          response.data.GET[db.weaviateHelp.INJECTED_PROMPTS_CLASS_NAME];
-        if (matchedWeaviateObjects.length == 0) break;
+      if (await checkPromptExistsInWeaviate(weaviateClient, promptData)) {
         await db.sqlClient
           .delete(db.newInjectedPrompts)
           .where(eq(db.newInjectedPrompts.id, promptData.newInjectedPromptsID));
         continue;
       }
     } catch (err) {
-      console.error(
-        `Error checking whether an injected prompt exists in weaviate:`
-      );
-      console.error(err);
+      // could not check if prompt exists in weaviate
       continue;
     }
 
-    // embed prompt
-    let embeddedPromptData: EmbeddingApiResponse;
+    // save the prompt to weaviate
     try {
-      const userMsgJson = schema.jsonObj.parse(
-        JSON.parse(promptData.userMessage)
-      );
-      embeddedPromptData = await fetchEmbeddingResult(
-        _preprocessJson(userMsgJson)
-      );
-      if (!embeddedPromptData.vector) {
-        throw new Error(
-          `Error generating semantic embedding: ${
-            embeddedPromptData.errorMessage ?? "empty error message"
-          }`
-        );
-      }
+      await embedAndSaveInjectedPromptToWeaviate(weaviateClient, promptData);
     } catch (err) {
-      console.error(
-        `Error processing & embedding a new injected prompt to store in weaviate:`
-      );
-      console.error(err);
-      continue;
-    }
-
-    // save prompt in weaviate
-    try {
-      await weaviateClient.data
-        .creator()
-        .withClassName(db.weaviateHelp.INJECTED_PROMPTS_CLASS_NAME)
-        .withProperties({
-          userMessage: promptData.userMessage,
-          assistantMessage: promptData.assistantMessage,
-          numTokens: promptData.numTokens,
-        })
-        .withVector(embeddedPromptData.vector)
-        .do();
-    } catch (err) {
-      console.error(
-        "Error creating a new object in weaviate for a new injected prompt:"
-      );
+      console.error("Error saving prompt to weaviate:");
       console.error(err);
       continue;
     }
@@ -743,21 +801,26 @@ The weaviate database may now be out of sync with the SQL database."
   }
 };
 
+type ScoredInjectedPrompt = InjectedPrompt & {
+  similarityScore: number;
+  keysSimilarity: number;
+  valsSimilarity: number;
+};
 /**
- * Gets up to 3 injected prompts that are similar enough to the `queryUserMsg`.
- * Uses both vector search and levenshtein distance to compute text similarity.
+ * @returns up to 10 similar prompts, along with similarity scores (unsorted).
  */
-export const findSimilarInjectedPrompts = async (
+export const findAndScoreInjectedPrompts = async (
+  weaviateClient: WeaviateClient,
   queryUserMsg: JsonObj,
-  weaviateClient: WeaviateClient
-): Promise<InjectedPrompt[]> => {
+  minVectorSimilarity = 0.71
+) => {
   // process input
   let queryVector: number[];
   const inputKeysByLevel: string[] = [];
   const inputValsByLevel: string[] = [];
   try {
-    const queryEmbeddingData = await fetchEmbeddingResult(
-      _preprocessJson(queryUserMsg)
+    const queryEmbeddingData = await fetchLocalEmbeddingResult(
+      _preprocessJson({ ...queryUserMsg })
     );
     if (!queryEmbeddingData.vector) {
       throw new Error(
@@ -788,17 +851,17 @@ export const findSimilarInjectedPrompts = async (
       )
       .withNearVector({
         vector: queryVector,
-        certainty: 0.8,
+        certainty: minVectorSimilarity,
       })
       // .withConsistencyLevel("ONE")
       .withLimit(10)
       .do()) as WeaviateResponseTypeGET;
     if (
       response.data &&
-      response.data.GET &&
-      db.weaviateHelp.INJECTED_PROMPTS_CLASS_NAME in response.data.GET
+      response.data.Get &&
+      db.weaviateHelp.INJECTED_PROMPTS_CLASS_NAME in response.data.Get
     ) {
-      for (const weaviateObject of response.data.GET[
+      for (const weaviateObject of response.data.Get[
         db.weaviateHelp.INJECTED_PROMPTS_CLASS_NAME
       ]) {
         weaviateResults.push({
@@ -819,7 +882,6 @@ export const findSimilarInjectedPrompts = async (
   }
 
   // compute lev distance from input to each result
-  type ScoredInjectedPrompt = InjectedPrompt & { similarityScore: number };
   const scoredInjectedPrompts: ScoredInjectedPrompt[] = [];
   for (const injectedPrompt of weaviateResults) {
     // scoring formula: (0.7 * keys_levenshtein_similarity_pct) * (0.3 * vals_levenshtein_similarity_pct)
@@ -868,8 +930,29 @@ export const findSimilarInjectedPrompts = async (
       assistantMessage: injectedPrompt.assistantMessage,
       numTokens: injectedPrompt.numTokens,
       similarityScore,
+      keysSimilarity: avgKeysLevDistPct,
+      valsSimilarity: avgValsLevDistPct,
     });
   }
+  // sort by highest similarity score
+  return scoredInjectedPrompts.sort(
+    (a, b) => b.similarityScore - a.similarityScore
+  );
+};
+
+/**
+ * Gets up to 3 injected prompts that are similar enough to the `queryUserMsg`.
+ * Uses both vector search and levenshtein distance to compute text similarity.
+ */
+export const findSimilarInjectedPrompts = async (
+  queryUserMsg: JsonObj,
+  weaviateClient: WeaviateClient
+): Promise<InjectedPrompt[]> => {
+  // get up to similar prompts by vector search
+  const scoredInjectedPrompts = await findAndScoreInjectedPrompts(
+    weaviateClient,
+    queryUserMsg
+  );
 
   // return up to 3 results most similar by lev distance
   return scoredInjectedPrompts
@@ -935,19 +1018,59 @@ export const addPromptInjections = async (
     : data.numInputTokens + (data.maxOutputTokens || 500);
   // inject similar prompts until token limit is reached
   let totalInputTokens = data.numInputTokens;
-  const chatMlMessages = [data.chatMlMessages[0]];
+  const chatMlMessages: string[] = [];
+  if (
+    data.chatMlMessages[0]
+      .slice(0, 10)
+      .toLowerCase()
+      .trim()
+      .startsWith("system: ")
+  ) {
+    chatMlMessages.push(data.chatMlMessages[0]);
+  } else {
+    chatMlMessages.push("System: " + data.chatMlMessages[0]);
+  }
   for (const similarPrompt of similarPrompts) {
+    // check if example message will fit
     if (
       similarPrompt.numTokens >=
       modelMaxLength - totalInputTokens - minOutputTokens
     ) {
       continue;
     }
-    chatMlMessages.push(similarPrompt.userMessage);
-    chatMlMessages.push(similarPrompt.assistantMessage);
+    // add example user message
+    if (
+      similarPrompt.userMessage
+        .slice(0, 7)
+        .toLowerCase()
+        .trim()
+        .startsWith("user: ")
+    ) {
+      chatMlMessages.push(similarPrompt.userMessage);
+    } else {
+      chatMlMessages.push("User: " + similarPrompt.userMessage);
+    }
+    // add example assistant message
+    if (
+      similarPrompt.assistantMessage
+        .slice(0, 11)
+        .toLowerCase()
+        .trim()
+        .startsWith("assistant: ")
+    ) {
+      chatMlMessages.push(similarPrompt.assistantMessage);
+    }
+    chatMlMessages.push("Assistant: " + similarPrompt.assistantMessage);
     totalInputTokens += similarPrompt.numTokens;
   }
-  chatMlMessages.push(data.chatMlMessages[1]);
+  // add final user message
+  if (
+    data.chatMlMessages[1].slice(0, 7).toLowerCase().trim().startsWith("user: ")
+  ) {
+    chatMlMessages.push(data.chatMlMessages[1]);
+  } else {
+    chatMlMessages.push("User: " + data.chatMlMessages[1]);
+  }
   return {
     chatMlMessages,
     numInputTokens: totalInputTokens,

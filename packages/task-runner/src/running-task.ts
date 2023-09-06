@@ -26,14 +26,7 @@ import type * as neo4j from "neo4j-driver";
 import { stage, type StageFunctionHelpers } from "agent-roger-core";
 import { type RateLimiter } from "./rate-limiter.js";
 import { MIN_TIME_BETWEEN_SAME_STAGE_CALLS } from "./constants.js";
-import {
-  Configuration as OpenAIConfiguration,
-  OpenAIApi,
-  type CreateChatCompletionRequest,
-  type ChatCompletionRequestMessage,
-  type CreateEmbeddingRequest,
-  type CreateEmbeddingResponseDataInner,
-} from "openai";
+import OpenAI from "openai";
 import { eq } from "drizzle-orm";
 import { addPromptInjections } from "./injected-prompt-fns.js";
 
@@ -563,6 +556,7 @@ string. Therefore, it is crucial that you only output a JSON object, like the on
 is unlikely to be relevant to the request. For example, if the request says not to mention anything about using a terminal or locating \
 a file, then do not include anything about using a terminal or locating a file.";
       const improvementLlmInput = assembleTextLlmInput({
+        // names don't matter (will be overwritten) - just the token count
         prompt: { t: observationStr, tt: initialSampleJson },
         systemMessage: observationLlmPrompt,
         expectedOutputFields: {},
@@ -643,7 +637,10 @@ ${JSON.stringify(improvedSampleJson)}`,
     let parsedJson: JsonObj = {};
     try {
       // get response or error
-      firstOutput = await this.getTextLlmString(data, temperature);
+      firstOutput = await this.getTextLlmStringWithInjectedPrompts(
+        data,
+        temperature
+      );
 
       if (!firstOutput) {
         throw new Error("No output received from first llm call");
@@ -671,6 +668,7 @@ beginning and ending with curly braces.\
 sure it can be parsed by JSON.parse().\
 \n If the input is already formatted perfectly, then the output should be exactly the same as the input.";
       const secondLlmInput = assembleTextLlmInput({
+        // names don't matter (will be overwritten) - just the token count
         prompt: { t: firstOutput },
         expectedOutputFields: {},
         systemMessage: secondPrompt,
@@ -712,6 +710,7 @@ sure it can be parsed by JSON.parse().\
           "System: You are an expert at debugging problems. You give a short but very helpful explanation and \
 solution whenever you encounter a problem. You do not format your responses with markdown or HTML.";
         const thirdLlmInput = assembleTextLlmInput({
+          // names don't matter (will be overwritten) - just the token count
           prompt: { t: firstOutput },
           expectedOutputFields: {},
           systemMessage: thirdPrompt,
@@ -770,8 +769,8 @@ fix this error, and where specifically is the problem located? The error is: ${(
   ): Promise<string> {
     // ensure input only has a system message and a user message
     if (data.chatMlMessages.length != 2) {
-      console.warn(`Tried to inject prompts into llm input with ${data.chatMlMessages.length} messages. Prompt injection \
-only works for inputs containing a single system message and a single user message.`);
+      //       console.warn(`Tried to inject prompts into llm input with ${data.chatMlMessages.length} messages. Prompt injection \
+      // only works for inputs containing a single system message and a single user message.`);
       return await this.getTextLlmString(data, temperature);
     }
     // add prompt injections and query llm
@@ -835,10 +834,27 @@ Please enable the unlimited-context MPT model, or debug your prompt-history (usi
         continue;
       }
       // format input for ChatML
-      const messages: Array<ChatCompletionRequestMessage> =
+
+      const messages: Array<OpenAI.Chat.ChatCompletionMessage> =
         data.chatMlMessages.map((msg) => {
           const msgParts = msg.split(":");
           const roleStr = msgParts[0].trim().toLowerCase();
+          if (
+            roleStr.includes("{") ||
+            roleStr.includes("'") ||
+            roleStr.includes('"')
+          ) {
+            console.error(
+              "getTextLlmString received invalid role string: ",
+              roleStr
+            );
+            console.error(
+              "Every ChatML message must start with either 'User:', 'System:', or 'Assistant:'... Received the following ChatML messages:"
+            );
+            console.log(
+              data.chatMlMessages.map((m) => m.slice(0, 100) + "...")
+            );
+          }
           const isSystem = roleStr == "system";
           const isAssistant =
             roleStr == "assistant" || roleStr == "model" || roleStr == "ai";
@@ -852,24 +868,27 @@ Please enable the unlimited-context MPT model, or debug your prompt-history (usi
       // TODO IF env.NEXT_PUBLIC_MPT_ENABLED, ADD INFERENCE REQUEST TO REDIS QUEUE
 
       // call OpenAI
-      const openai = new OpenAIApi(
-        new OpenAIConfiguration({ apiKey: env.OPENAI_API_KEY })
-      );
+      const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
       // see CreateChatCompletionRequest: https://github.com/openai/openai-node/blob/master/api.ts
-      const requestConfig: CreateChatCompletionRequest = {
+      const requestConfig: OpenAI.Chat.ChatCompletionCreateParams = {
         model: modelInfo.id,
         messages,
         max_tokens: maxOutputTokens,
         temperature: temperature,
       };
       let outputStr: string;
+      let response: OpenAI.Chat.ChatCompletion | string = "init";
       try {
         // see: https://platform.openai.com/docs/api-reference/chat/create?lang=node.js
-        const response = await openai.createChatCompletion(requestConfig);
-        outputStr = response.data.choices[0].message?.content ?? "";
+        response = await openai.chat.completions.create(requestConfig);
+        outputStr = response.choices[0].message?.content ?? "";
 
         // add example to list of input & output to save later
-        if (messages.length >= 2) {
+        if (
+          messages.length >= 2 &&
+          messages[0].content &&
+          messages[1].content
+        ) {
           this.unsavedPromptHistory.push({
             taskID: this.taskID,
             systemMessage: messages[0].content,
@@ -881,31 +900,32 @@ Please enable the unlimited-context MPT model, or debug your prompt-history (usi
 
         return outputStr;
       } catch (err) {
-        try {
-          const openAiResponse = (
-            err as {
-              response: {
-                data: { error: { message: string } };
-                status: number;
-                statusText: string;
-              };
-            }
-          ).response;
-          if (this.wasPaused || this.wasRestartedWhileRunning) {
-            throw new Error("Task was paused while trying to query the LLM.");
-          }
-          if (openAiResponse.status == 429) {
+        if (err instanceof OpenAI.APIError) {
+          if (err.status == 429) {
+            // handle rate limiting
             await new Promise((resolve) =>
               setTimeout(resolve, 6000 + Math.random() * 60000)
             );
             retries += 1;
             continue;
           }
-          const openAiErrMsg = `Failed to call OpenAI chat completion endpoint (l3). Error code: ${openAiResponse.status}.    GENERAL \
-ERROR MESSAGE: ""${openAiResponse.statusText}""    SPECIFIC ERROR MESSAGE: ""${openAiResponse.data.error.message}.""`;
+          // handle other OpenAI errors
+          const openAiErrMsg = `Failed to call OpenAI chat completion endpoint (l3). Error code: ${
+            err.status ?? "unknown"
+          }.    GENERAL \
+ERROR MESSAGE: ""${err.code ?? "unknown"}""    SPECIFIC ERROR MESSAGE: ""${
+            err.message
+          }.""`;
+          console.log("");
+          console.log("request:");
+          console.log(requestConfig);
+          console.log("");
+          console.log("response:");
+          console.log(response);
+          console.log("");
           console.error(openAiErrMsg);
           throw new Error(openAiErrMsg);
-        } catch (_) {
+        } else {
           throw new Error(
             `Failed to call OpenAI chat completion endpoint (l2): ${String(
               err
@@ -965,29 +985,22 @@ ERROR MESSAGE: ""${openAiResponse.statusText}""    SPECIFIC ERROR MESSAGE: ""${o
     }
 
     // call OpenAI
-    const openai = new OpenAIApi(
-      new OpenAIConfiguration({ apiKey: env.OPENAI_API_KEY })
-    );
+    const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
     // see CreateChatCompletionRequest: https://github.com/openai/openai-node/blob/master/api.ts
-    const requestConfig: CreateEmbeddingRequest = {
+    const requestConfig: OpenAI.Embeddings.EmbeddingCreateParams = {
       model: modelInfo.id,
       input: data.input,
     };
     try {
       // see: https://platform.openai.com/docs/api-reference/chat/create?lang=node.js
-      const response = await openai.createEmbedding(requestConfig);
-      if (response.status != 200)
-        throw new Error(
-          "Error response from OpenAI: " + JSON.stringify(response, null, 2)
-        );
-      if (response.data.data.length != data.input.length) {
+      const response = await openai.embeddings.create(requestConfig);
+      if (response.data.length != data.input.length) {
         throw new Error(
           "OpenAI returned an invalid response: " +
             JSON.stringify(response, null, 2)
         );
       }
-      const outputVectorsData: CreateEmbeddingResponseDataInner[] =
-        response.data.data;
+      const outputVectorsData: OpenAI.Embedding[] = response.data;
       return outputVectorsData.map((vectorData) => vectorData.embedding);
     } catch (err) {
       console.error(

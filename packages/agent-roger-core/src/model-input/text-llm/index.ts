@@ -24,6 +24,7 @@ export const getSmallestModel = (minContextLength: number): AiModel | null => {
   // find shortest model that can handle the context length
   let shortestSufficientModelInfo: AiModel | null = null;
   for (const modelInfo of Object.values(AI_MODELS)) {
+    if (modelInfo.id.toLowerCase().includes("embed")) continue;
     if (modelInfo.maxTokens < minContextLength + 500) continue;
     if (modelInfo.id == AI_MODELS.mpt.id && !env.NEXT_PUBLIC_MPT_ENABLED)
       continue;
@@ -57,6 +58,7 @@ export const getLargestModel = (): AiModel | null => {
   let largestModel = null;
   let largestContextLength = 0;
   for (const modelInfo of Object.values(AI_MODELS)) {
+    if (modelInfo.id.toLowerCase().includes("embed")) continue;
     if (modelInfo.id == AI_MODELS.mpt.id && !env.NEXT_PUBLIC_MPT_ENABLED)
       continue;
     if (modelInfo.id == AI_MODELS.gpt4.id && !env.NEXT_PUBLIC_GPT4_ENABLED)
@@ -123,7 +125,10 @@ export const assembleTextLlmInput = (data: {
     if (data.maxOutputTokens) {
       maxOutputTokens = data.maxOutputTokens;
     } else {
-      maxOutputTokens = 0.9 * AI_MODELS.gpt4.maxTokens - numInputTokens;
+      maxOutputTokens = Math.max(
+        1000 + 0.2 * numInputTokens,
+        0.9 * AI_MODELS.gpt4.maxTokens - numInputTokens
+      );
     }
 
     // create text llm input

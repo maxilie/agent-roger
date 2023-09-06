@@ -144,16 +144,16 @@ does not reasonably align with the 'suggestedApproaches'.",
         );
         return;
       }
-      const stepInstruction = llmOutput.value.taskToModify;
+      const stepInstruction = llmOutput.value.modifiedTask;
       if (
         stepInstruction === null ||
         stepInstruction === undefined ||
         typeof stepInstruction != "string"
       ) {
         helpers.endStage(
-          `Generated invalid step instructions for step index ${initialStepsIdx}: "${
+          `Generated invalid step instructions for step index ${initialStepsIdx} (${
             steps[initialStepsIdx]
-          }". textLlm returned data: ${JSON.stringify(
+          }).    textLlm returned data: ${JSON.stringify(
             llmOutput.value,
             null,
             2

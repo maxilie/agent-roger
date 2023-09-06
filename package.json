@@ -19,7 +19,8 @@
     "start:vector-db": "cd docker-containers/weaviate && docker-compose --env-file ../../.env up",
     "start:vector-db-background": "cd docker-containers/weaviate && docker-compose --env-file ../../.env up -d",
     "start:redis": "cd docker-containers/redis && docker-compose --env-file ../../.env up",
-    "start:redis-background": "cd docker-containers/redis && docker-compose --env-file ../../.env up -d"
+    "start:redis-background": "cd docker-containers/redis && docker-compose --env-file ../../.env up -d",
+    "test:injected-prompts": "yarn workspace agent-roger-task-runner test:injected-prompts"
   },
   "devDependencies": {
     "dotenv": "^16.0.3",

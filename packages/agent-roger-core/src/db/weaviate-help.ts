@@ -60,8 +60,10 @@ const createWeaviateClient = (): WeaviateClient => {
   });
 };
 
-// adds schema to weaviate, if it doesn't already exist
-const insertSchema = async (
+/**
+ * Adds schema to weaviate, if it doesn't already exist
+ */
+export const insertSchema = async (
   weaviateClient: WeaviateClient,
   classObj: object
 ) => {
@@ -127,6 +129,7 @@ export const weaviateHelp = {
   createWeaviateClient,
   isConnectionValid,
   batchDeleteFileDocuments,
+  insertSchema,
 };
 
 // SEE: https://weaviate.io/developers/weaviate/api/rest/schema#create-a-class

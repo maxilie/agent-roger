@@ -67,4 +67,4 @@ async def embed_paragraph(text: str, api_key: str = Depends(get_api_key)):
     finally:
         semaphore.release()
         elapsed_time = time.time() - start_time
-        logger.info(f"Request took {elapsed_time} seconds.")
+        logger.info(f"Request took {f'{elapsed_time:.5f}'} seconds.")
