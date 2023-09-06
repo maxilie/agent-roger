@@ -264,6 +264,7 @@ export const historicalAiCallSchema = z.object({
   userMessage: z.string(),
   assistantMessage: z.string(),
   timestamp: z.date(),
+  isUserMsgJson: z.boolean(),
 });
 export type HistoricalAiCall = z.infer<typeof historicalAiCallSchema>;
 

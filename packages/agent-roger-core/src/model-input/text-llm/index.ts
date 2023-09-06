@@ -127,7 +127,7 @@ export const assembleTextLlmInput = (data: {
     } else {
       maxOutputTokens = Math.max(
         1000 + 0.2 * numInputTokens,
-        0.9 * AI_MODELS.gpt4.maxTokens - numInputTokens
+        6500 - numInputTokens
       );
     }
 

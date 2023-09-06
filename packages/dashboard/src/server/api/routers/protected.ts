@@ -261,6 +261,7 @@ export const tasksRouter = createTRPCRouter({
         z.object({
           id: z.number(),
           timestamp: z.date(),
+          isUserMsgJson: z.boolean(),
         })
       )
     )

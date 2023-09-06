@@ -399,7 +399,7 @@ class RunningTask {
   }
 
   /**
-   * Uses multiple LLM samples with different temperatures to generate high-quality data for the `data.requestedOutputFields`.
+   * Uses multiple LLM samples with different temperatures to generate high-quality data for the `requestedOutputFields` in the user message.
    */
   async textLlmHelper(data: TextLlmInput): Promise<JsonObj> {
     const numHighTempSamples = 2;
@@ -441,12 +441,23 @@ class RunningTask {
       );
     }
     // add example to list of input & output to save later
+    let isUserMsgJson = false;
+    const userMsg = data.chatMlMessages[data.chatMlMessages.length - 1];
+    try {
+      if (userMsg.slice(0, 8).toLowerCase().trim().startsWith("user:")) {
+        JSON.parse(userMsg.split("ser:").slice(1).join("ser:").trim());
+      } else {
+        JSON.parse(userMsg);
+      }
+      isUserMsgJson = true;
+    } catch (_) {}
     this.unsavedPromptHistory.push({
       taskID: this.taskID,
       systemMessage: data.chatMlMessages[0],
-      userMessage: data.chatMlMessages[1],
+      userMessage: userMsg,
       assistantMessage: JSON.stringify(bestResult),
       timestamp: new Date(),
+      isUserMsgJson,
     });
 
     // check if the AI has requested to pause the task
@@ -803,7 +814,7 @@ Please enable the unlimited-context MPT model, or debug your prompt-history (usi
     }
     // calculate max output tokens
     const completionTokensConservativeEstimate = Math.floor(
-      modelInfo.maxTokens * 0.95 - data.numInputTokens * 0.9 - 50
+      modelInfo.maxTokens * 0.95 - data.numInputTokens * 1.1 - 50
     );
     const maxOutputTokens = data.maxOutputTokens
       ? Math.min(data.maxOutputTokens, completionTokensConservativeEstimate)
@@ -887,14 +898,21 @@ Please enable the unlimited-context MPT model, or debug your prompt-history (usi
         if (
           messages.length >= 2 &&
           messages[0].content &&
-          messages[1].content
+          messages[messages.length - 1].content
         ) {
+          let isUserMsgJson = false;
+          const userMsg = messages[messages.length - 1].content ?? "";
+          try {
+            JSON.parse(userMsg);
+            isUserMsgJson = true;
+          } catch (_) {}
           this.unsavedPromptHistory.push({
             taskID: this.taskID,
             systemMessage: messages[0].content,
-            userMessage: messages[1].content,
+            userMessage: userMsg,
             assistantMessage: outputStr,
             timestamp: new Date(),
+            isUserMsgJson,
           });
         }
 

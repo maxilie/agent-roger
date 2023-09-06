@@ -441,7 +441,7 @@ export const PromptsModal = (props: {
       )
     : formatDateHrMin(new Date());
   let duplicatesInMinute = 0;
-  historicalPromptIDsToDisplay.forEach((data) => {
+  [...historicalPromptIDsToDisplay].reverse().forEach((data) => {
     const timeStr = formatDateHrMin(data.timestamp);
     if (timeStr != lastTimeStr) {
       lastTimeStr = timeStr;
@@ -451,10 +451,17 @@ export const PromptsModal = (props: {
     }
     let prettyTimeStr = timeStr;
     if (duplicatesInMinute) {
-      prettyTimeStr += ` (${duplicatesInMinute + 1})`;
+      prettyTimeStr =
+        (prettyTimeStr.split(" ")[0] || "") +
+        `.${duplicatesInMinute} ` +
+        (prettyTimeStr.split(" ")[1] || "");
+    }
+    if (data.isUserMsgJson) {
+      prettyTimeStr += " (injectable)";
     }
     prettyBatchHistoricalPrompts.push({ id: data.id, timeStr: prettyTimeStr });
   });
+  prettyBatchHistoricalPrompts.reverse();
 
   // auto-select first item in selected batch
   useEffect(() => {
@@ -1153,7 +1160,8 @@ export const PromptsModal = (props: {
   // determine what buttons to show
   const showBtnAddToPromptInjections =
     (props.selectedDataBank == "task-prompt-history" &&
-      selectedHistoricalPromptID) ||
+      selectedHistoricalPromptID &&
+      historicalPrompt?.isUserMsgJson === false) ||
     (props.selectedDataBank == "training-pair-1x" && selectedTrainingDataID);
   const showBtnAddToTrainingData =
     (props.selectedDataBank == "task-prompt-history" &&

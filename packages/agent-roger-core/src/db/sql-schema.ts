@@ -98,4 +98,5 @@ export const taskPromptHistory = mysqlTable("task_prompt_history", {
   userMessage: text("user_message").notNull(),
   assistantMessage: text("assistant_message").notNull(),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
+  isUserMsgJson: boolean("is_user_msg_json").notNull().default(false),
 });

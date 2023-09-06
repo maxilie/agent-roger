@@ -1745,6 +1745,7 @@ export const insertHistoricalAiCall = async (
       userMessage,
       assistantMessage,
       timestamp: data.timestamp,
+      isUserMsgJson: data.isUserMsgJson,
     });
   } catch (error) {
     console.error(
@@ -1915,7 +1916,7 @@ export const getBatchHistoricalAiCallIDs = async (input: {
   N: number;
   startTime?: Date | null;
   endTime?: Date | null;
-}): Promise<{ id: number; timestamp: Date }[]> => {
+}): Promise<{ id: number; timestamp: Date; isUserMsgJson: boolean }[]> => {
   try {
     let ascendingOrder = false;
     let timeComparison = lte(taskPromptHistory.timestamp, new Date());
@@ -1929,6 +1930,7 @@ export const getBatchHistoricalAiCallIDs = async (input: {
       .select({
         id: taskPromptHistory.id,
         timestamp: taskPromptHistory.timestamp,
+        isUserMsgJson: taskPromptHistory.isUserMsgJson,
       })
       .from(taskPromptHistory)
       .where(
@@ -1980,6 +1982,7 @@ export const getHistoricalAiCall = async (input: {
       userMessage: unparsedResult.userMessage,
       assistantMessage: unparsedResult.assistantMessage,
       timestamp: unparsedResult.timestamp,
+      isUserMsgJson: unparsedResult.isUserMsgJson || false,
     });
   } catch (error) {
     console.error(
