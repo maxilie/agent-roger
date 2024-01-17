@@ -1,0 +1,34 @@
+{
+    "name": "inf-engine",
+    "version": "1.0.0",
+    "description": "Inference engine for the Agent Roger project",
+    "main": "src/server.ts",
+    "type": "module",
+    "scripts": {
+        "lint": "eslint .",
+        "download-model": "",
+        "build-backend-metal": "rm -rf llama.cpp && git clone https://github.com/ggerganov/llama.cpp && cd llama.cpp && mkdir build && cd build && brew install cmake && cmake .. && cmake --build . --config Release && sudo sysctl iogpu.wired_limit_mb=26624",
+        "build-backend-gpu": "rm -rf llama.cpp && git clone https://github.com/ggerganov/llama.cpp && cd llama.cpp && mkdir build && cd build && brew install cmake && cmake .. && cmake --build . --config Release",
+        "start-backend": "env-cmd -f ../../.env sh -c 'cd llama.cpp && ./build/bin/server -m $LOCAL_LLM_PATH -c $LOCAL_LLM_CONTEXT --threads-batch 10 --batch-size 256'",
+        "start-queue-handler": "env-cmd -f ../../.env node --loader ts-node/esm ./src/server.ts",
+        "start-queue-handler-1": "env-cmd -f ../../.env ts-node --esm ./src/server.ts"
+    },
+    "dependencies": {
+        "agent-roger-core": "portal:../agent-roger-core",
+        "dotenv": "^16.0.3",
+        "ioredis": "^5.3.2",
+        "zod": "^3.21.4"
+    },
+    "devDependencies": {
+        "@agent-roger/eslint-config-base": "workspace:^",
+        "@types/node": "^18.6.0",
+        "@typescript-eslint/eslint-plugin": "^5.59.1",
+        "@typescript-eslint/parser": "^5.59.1",
+        "env-cmd": "^10.1.0",
+        "eslint": "^8.39.0",
+        "eslint-config-prettier": "8.8.0",
+        "prettier": "2.8.8",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.0.2"
+    }
+}

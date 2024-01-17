@@ -2,11 +2,12 @@
   "name": "agent-roger-task-runner",
   "version": "1.0.0",
   "description": "",
-  "type": "module",
   "main": "src/server.ts",
+  "type": "module",
   "scripts": {
     "lint": "eslint .",
     "start": "env-cmd -f ../../.env ts-node --esm ./src/server.ts",
+    "start2": "env-cmd -f ../../.env node --loader ts-node/esm ./src/server.ts",
     "test:injected-prompts": "env-cmd -f ../../.env ts-node --esm ./test/test-injected-prompts.ts"
   },
   "dependencies": {
@@ -19,7 +20,6 @@
     "ioredis": "^5.3.2",
     "neo4j-driver": "5.7.0",
     "openai": "^4.4.0",
-    "ts-node": "^10.9.1",
     "weaviate-ts-client": "1.3.0",
     "zod": "3.21.4"
   },
@@ -31,7 +31,7 @@
     "eslint": "^8.39.0",
     "eslint-config-prettier": "8.8.0",
     "prettier": "2.8.8",
-    "ts-node": "^10.9.1",
+    "ts-node": "^10.9.2",
     "typescript": "^5.0.4"
   }
 }

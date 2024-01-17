@@ -91,93 +91,103 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@clerk/backend@npm:^0.17.2":
-  version: 0.17.2
-  resolution: "@clerk/backend@npm:0.17.2"
+"@clerk/backend@npm:0.37.2":
+  version: 0.37.2
+  resolution: "@clerk/backend@npm:0.37.2"
   dependencies:
-    "@clerk/types": ^3.35.3
+    "@clerk/shared": 1.3.1
+    "@clerk/types": 3.60.0
     "@peculiar/webcrypto": 1.4.1
     "@types/node": 16.18.6
+    cookie: 0.5.0
     deepmerge: 4.2.2
     node-fetch-native: 1.0.1
     snakecase-keys: 5.4.4
     tslib: 2.4.1
-  checksum: 2e05e553a1efd96d5f514e7545d18a1f5633e2d13dfa7901ebdeb0f7d4cac1de27d8024210b593f2a3eb965e06eef463c97aaabf78c961b0f2f1b89251a4b8e7
+  checksum: 2bf1f0215384b66a0fba1c3fcb5617be7d7a624d11b926cde6e318938a6fa9c2a6ab648f3d0af60a641cd8e950ec53da093856edd50fa01f0c44e0c61fea2c1b
   languageName: node
   linkType: hard
 
-"@clerk/clerk-react@npm:^4.15.3":
-  version: 4.15.3
-  resolution: "@clerk/clerk-react@npm:4.15.3"
+"@clerk/clerk-react@npm:4.30.3":
+  version: 4.30.3
+  resolution: "@clerk/clerk-react@npm:4.30.3"
   dependencies:
-    "@clerk/shared": ^0.15.6
-    "@clerk/types": ^3.35.3
-    swr: 1.3.0
+    "@clerk/shared": 1.3.1
+    "@clerk/types": 3.60.0
     tslib: 2.4.1
   peerDependencies:
     react: ">=16"
-  checksum: 486fcdcc6f27185fd0528cadde5cded1cfaf6e27065b517cd88f4998c2b505c242746b5820cc2872bccd7792ec956094c8ae117b59bcba8c08af0f524198a86d
+  checksum: 0b4a77af8dec16eb1ee03ad27f81a5ae301730cb00721e774bc567a9361e235f49876c41f5af1911914988b7864f74fc0f864a199fd73e6a0291fefb08216629
   languageName: node
   linkType: hard
 
-"@clerk/clerk-sdk-node@npm:^4.8.6":
-  version: 4.8.6
-  resolution: "@clerk/clerk-sdk-node@npm:4.8.6"
+"@clerk/clerk-sdk-node@npm:4.13.6":
+  version: 4.13.6
+  resolution: "@clerk/clerk-sdk-node@npm:4.13.6"
   dependencies:
-    "@clerk/backend": ^0.17.2
-    "@clerk/types": ^3.35.3
+    "@clerk/backend": 0.37.2
+    "@clerk/shared": 1.3.1
+    "@clerk/types": 3.60.0
     "@types/cookies": 0.7.7
     "@types/express": 4.17.14
     "@types/node-fetch": 2.6.2
     camelcase-keys: 6.2.2
-    cookie: 0.5.0
     snakecase-keys: 3.2.1
     tslib: 2.4.1
-  checksum: 2df884ad12212772700f54ef1c7c46bcdd048b6420d5b10e8ca2c78a6a761b6316fdf3855749f60c18d928739965cf22843fb3c14f0f3d19309c53028b073a28
+  checksum: 6737d60cc8dbb507597db6466457ab5aab2655c91ffe908631d59553c5a71d2cdda2daf1971d713025b2408130247314d37da3ceb47d8238aaffbec0ed7df597
   languageName: node
   linkType: hard
 
-"@clerk/nextjs@npm:^4.16.0":
-  version: 4.16.4
-  resolution: "@clerk/nextjs@npm:4.16.4"
+"@clerk/nextjs@npm:^4.29.3":
+  version: 4.29.3
+  resolution: "@clerk/nextjs@npm:4.29.3"
   dependencies:
-    "@clerk/backend": ^0.17.2
-    "@clerk/clerk-react": ^4.15.3
-    "@clerk/clerk-sdk-node": ^4.8.6
-    "@clerk/types": ^3.35.3
+    "@clerk/backend": 0.37.2
+    "@clerk/clerk-react": 4.30.3
+    "@clerk/clerk-sdk-node": 4.13.6
+    "@clerk/shared": 1.3.1
+    "@clerk/types": 3.60.0
+    path-to-regexp: 6.2.1
     tslib: 2.4.1
   peerDependencies:
     next: ">=10"
     react: ^17.0.2 || ^18.0.0-0
     react-dom: ^17.0.2 || ^18.0.0-0
-  checksum: 15f6ceef0614407f35ea2c79ee5c7665ca8b619183e891fa2455518d69d4a4a378e4ad672967c28d4a8517f1b52c4d6e3d2d885327df9a0d7fa0935cd70c74f2
+  checksum: 3ee84b2bbfc422bf27e5c935313e83b2686abfa44575644a8795443d6a3eab7dc57421186a8beb2c25aa5cccaeb91a2482a3ecacb02b674a11d32d21a19bbb75
   languageName: node
   linkType: hard
 
-"@clerk/shared@npm:^0.15.6":
-  version: 0.15.6
-  resolution: "@clerk/shared@npm:0.15.6"
+"@clerk/shared@npm:1.3.1":
+  version: 1.3.1
+  resolution: "@clerk/shared@npm:1.3.1"
+  dependencies:
+    glob-to-regexp: 0.4.1
+    js-cookie: 3.0.1
+    swr: 2.2.0
   peerDependencies:
     react: ">=16"
-  checksum: 280ba49b4e894d90648ac48dab2a8da41c47fa7f5a528cede110d65507f7fb1b07e49ef6f64be6de9eefdfd985a823aa0c3276b1792bc9d1fad2e4ae12f59ab2
+  peerDependenciesMeta:
+    react:
+      optional: true
+  checksum: 4440d2e720670ad83996605f2edcd2225d458542bdeaa6bbf08ad1596a769b4c1438c55370ae256d327777fff942e429964254802e6b8556166d77e125145955
   languageName: node
   linkType: hard
 
-"@clerk/themes@npm:^1.6.3":
-  version: 1.6.3
-  resolution: "@clerk/themes@npm:1.6.3"
+"@clerk/themes@npm:^1.7.9":
+  version: 1.7.9
+  resolution: "@clerk/themes@npm:1.7.9"
   peerDependencies:
     react: ">=16"
-  checksum: 7aff3f11caac817f16e81c32a8c2ce8eda962fe4caff6ee7ec240874be0033f0725fc7ddffc165f52fbef117f8ef57f00fd848a0eca64bf18410a75c047704bf
+  checksum: d44955929518843403ebb448565a4c2ec71e7a503d55077a51b1c2f13c4386e1deb3cd514565dceaacda943cbb6fbe28449cc505c4bd57393028084bed50aa1a
   languageName: node
   linkType: hard
 
-"@clerk/types@npm:^3.35.3":
-  version: 3.35.3
-  resolution: "@clerk/types@npm:3.35.3"
+"@clerk/types@npm:3.60.0":
+  version: 3.60.0
+  resolution: "@clerk/types@npm:3.60.0"
   dependencies:
     csstype: 3.1.1
-  checksum: 06beaaa03ffe4337c77bca0749e9cb370c34ccd5153522d565a7bc0ad17775cac796f5cdf878c07b468e0a668c87137a88ff5ba13e105d2ad9eb4c16cb40084a
+  checksum: ee07b9d5d73cb0b7b6efba49e0102dbd412fa87b58b215ca95e0db59f12311fde4d57a124f0a3874d7121f30ec8d40dbbe4ea41835b133fdd0986999cbce9fe5
   languageName: node
   linkType: hard
 
@@ -2020,6 +2030,21 @@ __metadata:
   languageName: node
   linkType: soft
 
+"agent-roger-core@portal:../agent-roger-core::locator=inf-engine%40workspace%3Apackages%2Finf-engine":
+  version: 0.0.0-use.local
+  resolution: "agent-roger-core@portal:../agent-roger-core::locator=inf-engine%40workspace%3Apackages%2Finf-engine"
+  dependencies:
+    "@planetscale/database": 1.7.0
+    drizzle-orm: 0.25.1
+    gpt-tokenizer: ^2.0.0
+    graphql: ^16.6.0
+    ioredis: ^5.3.2
+    neo4j-driver: 5.7.0
+    weaviate-ts-client: 1.3.0
+    zod: ^3.21.4
+  languageName: node
+  linkType: soft
+
 "agent-roger-core@workspace:^, agent-roger-core@workspace:packages/agent-roger-core":
   version: 0.0.0-use.local
   resolution: "agent-roger-core@workspace:packages/agent-roger-core"
@@ -2051,8 +2076,8 @@ __metadata:
   resolution: "agent-roger-dashboard@workspace:packages/dashboard"
   dependencies:
     "@agent-roger/eslint-config-base": "workspace:^"
-    "@clerk/nextjs": ^4.16.0
-    "@clerk/themes": ^1.6.3
+    "@clerk/nextjs": ^4.29.3
+    "@clerk/themes": ^1.7.9
     "@planetscale/database": 1.7.0
     "@radix-ui/react-accordion": ^1.1.1
     "@radix-ui/react-tabs": ^1.0.3
@@ -2126,7 +2151,7 @@ __metadata:
     neo4j-driver: 5.7.0
     openai: ^4.4.0
     prettier: 2.8.8
-    ts-node: ^10.9.1
+    ts-node: ^10.9.2
     typescript: ^5.0.4
     weaviate-ts-client: 1.3.0
     zod: 3.21.4
@@ -2137,6 +2162,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "agent-roger@workspace:."
   dependencies:
+    "@types/node": ^18.6.0
     dotenv: ^16.0.3
     drizzle-kit: 0.17.5-e5944eb
     drizzle-orm: 0.25.1
@@ -5230,6 +5256,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"glob-to-regexp@npm:0.4.1":
+  version: 0.4.1
+  resolution: "glob-to-regexp@npm:0.4.1"
+  checksum: e795f4e8f06d2a15e86f76e4d92751cf8bbfcf0157cea5c2f0f35678a8195a750b34096b1256e436f0cebc1883b5ff0888c47348443e69546a5a87f9e1eb1167
+  languageName: node
+  linkType: hard
+
 "glob@npm:7.1.6":
   version: 7.1.6
   resolution: "glob@npm:7.1.6"
@@ -5599,6 +5632,27 @@ __metadata:
   checksum: 030ca9ddbb50b6b525ef6c4da026968df75e728915ed574a28c4437dd4b8154217b21f519136abc8c198796d9ee609ee7279c02e6f6db72d248422e460656c09
   languageName: node
   linkType: hard
+
+"inf-engine@workspace:packages/inf-engine":
+  version: 0.0.0-use.local
+  resolution: "inf-engine@workspace:packages/inf-engine"
+  dependencies:
+    "@agent-roger/eslint-config-base": "workspace:^"
+    "@types/node": ^18.6.0
+    "@typescript-eslint/eslint-plugin": ^5.59.1
+    "@typescript-eslint/parser": ^5.59.1
+    agent-roger-core: "portal:../agent-roger-core"
+    dotenv: ^16.0.3
+    env-cmd: ^10.1.0
+    eslint: ^8.39.0
+    eslint-config-prettier: 8.8.0
+    ioredis: ^5.3.2
+    prettier: 2.8.8
+    ts-node: ^10.9.2
+    typescript: ^5.0.2
+    zod: ^3.21.4
+  languageName: unknown
+  linkType: soft
 
 "infer-owner@npm:^1.0.4":
   version: 1.0.4
@@ -5987,6 +6041,13 @@ __metadata:
   bin:
     jiti: bin/jiti.js
   checksum: 46c41cd82d01c6efdee3fc0ae9b3e86ed37457192d6366f19157d863d64961b07982ab04e9d5879576a1af99cc4d132b0b73b336094f86a5ce9fb1029ec2d29f
+  languageName: node
+  linkType: hard
+
+"js-cookie@npm:3.0.1":
+  version: 3.0.1
+  resolution: "js-cookie@npm:3.0.1"
+  checksum: bb48de67e2a6bd1ae3dfd6b2d5a167c33dd0c5a37e909206161eb0358c98f17cb55acd55827a58e9eea3630d89444e7479f7938ef4420dda443218b8c434a4c3
   languageName: node
   linkType: hard
 
@@ -7134,6 +7195,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"path-to-regexp@npm:6.2.1":
+  version: 6.2.1
+  resolution: "path-to-regexp@npm:6.2.1"
+  checksum: f0227af8284ea13300f4293ba111e3635142f976d4197f14d5ad1f124aebd9118783dd2e5f1fe16f7273743cc3dbeddfb7493f237bb27c10fdae07020cc9b698
+  languageName: node
+  linkType: hard
+
 "path-type@npm:^4.0.0":
   version: 4.0.0
   resolution: "path-type@npm:4.0.0"
@@ -8213,12 +8281,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"swr@npm:1.3.0":
-  version: 1.3.0
-  resolution: "swr@npm:1.3.0"
+"swr@npm:2.2.0":
+  version: 2.2.0
+  resolution: "swr@npm:2.2.0"
+  dependencies:
+    use-sync-external-store: ^1.2.0
   peerDependencies:
     react: ^16.11.0 || ^17.0.0 || ^18.0.0
-  checksum: e7a184f0d560e9c8be85c023cc8e65e56a88a6ed46f9394b301b07f838edca23d2e303685319a4fcd620b81d447a7bcb489c7fa0a752c259f91764903c690cdb
+  checksum: 1f04795ff9dff54987cbf8a544afc9e42d1350a99e899be8a7cdc4885f561e3ee464f78245ee2ebc8ced262b04023d134f731e276227319dc2d6e1843389ddd8
   languageName: node
   linkType: hard
 
@@ -8542,6 +8612,44 @@ __metadata:
     ts-node-transpile-only: dist/bin-transpile.js
     ts-script: dist/bin-script-deprecated.js
   checksum: 090adff1302ab20bd3486e6b4799e90f97726ed39e02b39e566f8ab674fd5bd5f727f43615debbfc580d33c6d9d1c6b1b3ce7d8e3cca3e20530a145ffa232c35
+  languageName: node
+  linkType: hard
+
+"ts-node@npm:^10.9.2":
+  version: 10.9.2
+  resolution: "ts-node@npm:10.9.2"
+  dependencies:
+    "@cspotcode/source-map-support": ^0.8.0
+    "@tsconfig/node10": ^1.0.7
+    "@tsconfig/node12": ^1.0.7
+    "@tsconfig/node14": ^1.0.0
+    "@tsconfig/node16": ^1.0.2
+    acorn: ^8.4.1
+    acorn-walk: ^8.1.1
+    arg: ^4.1.0
+    create-require: ^1.1.0
+    diff: ^4.0.1
+    make-error: ^1.1.1
+    v8-compile-cache-lib: ^3.0.1
+    yn: 3.1.1
+  peerDependencies:
+    "@swc/core": ">=1.2.50"
+    "@swc/wasm": ">=1.2.50"
+    "@types/node": "*"
+    typescript: ">=2.7"
+  peerDependenciesMeta:
+    "@swc/core":
+      optional: true
+    "@swc/wasm":
+      optional: true
+  bin:
+    ts-node: dist/bin.js
+    ts-node-cwd: dist/bin-cwd.js
+    ts-node-esm: dist/bin-esm.js
+    ts-node-script: dist/bin-script.js
+    ts-node-transpile-only: dist/bin-transpile.js
+    ts-script: dist/bin-script-deprecated.js
+  checksum: fde256c9073969e234526e2cfead42591b9a2aec5222bac154b0de2fa9e4ceb30efcd717ee8bc785a56f3a119bdd5aa27b333d9dbec94ed254bd26f8944c67ac
   languageName: node
   linkType: hard
 

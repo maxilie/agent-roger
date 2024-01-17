@@ -5,14 +5,17 @@
     "lib": ["dom", "dom.iterable", "esnext", "ES2015.Core"],
     "baseUrl": "./",
     "target": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "nodenext",
     "skipLibCheck": true,
-    "allowJs": true,
     "checkJs": false,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
   },
-  "include": ["**/*", ".eslintrc.cjs"],
-  "exclude": ["./build", "renameToCjs.cjs"]
+  "ts-node": {
+    // Tell ts-node CLI to install the --loader automatically
+    "esm": true
+  },
+  "include": ["/**/*", ".eslintrc.cjs", "./src/**/*.ts", "test/**/*.ts", "/**/*.ts"],
+  "exclude": ["./build", "renameToCjs.cjs", "node_modules"]
 }

@@ -9,7 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
-    "@clerk/nextjs": "^4.16.0",
+    "@clerk/nextjs": "^4.29.3",
     "@planetscale/database": "1.7.0",
     "@radix-ui/react-accordion": "^1.1.1",
     "@radix-ui/react-tabs": "^1.0.3",
@@ -43,7 +43,7 @@
   },
   "devDependencies": {
     "@agent-roger/eslint-config-base": "workspace:^",
-    "@clerk/themes": "^1.6.3",
+    "@clerk/themes": "^1.7.9",
     "@types/eslint": "^8.21.3",
     "@types/node": "^18.15.5",
     "@types/prettier": "^2.7.2",

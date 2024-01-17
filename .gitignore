@@ -9,6 +9,7 @@ packages/*/tsconfig.tsbuildinfo
 packages/*/next-env.d.ts
 packages/*/.next
 packages/*/build
+packages/*/llama.cpp
 .next
 lib/*/node_modules
 lib/*/dist

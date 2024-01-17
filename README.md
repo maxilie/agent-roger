@@ -216,7 +216,76 @@ sudo chmod -R 755 <DIRECTORY>
 
 ```
 
+
+## Inference
+
+The system requires a fine-tuned LLM to be made available for inference via the included inference engine (a simple Redis queue).
+
+For practicality, we multiple versions of the same model:
+ - Q3 quantized version when running locally (M1 chip with 32 GB memory)
+ - Q4 quantized version when running in the cloud
+ - Full version when fine-tuning the model
+
+### Getting Started
+First, select a quantized model in `.gguf` format from HuggingFace. Then, you can use it to start the inference engine locally or in a docker container.
+
+<details>
+<summary>
+Local Inference Engine (Apple Silicon ONLY):
+</summary>
+
+First, download the quantized model. It is recommended to use a version ending with `_K_M.gguf`.
+
+```bash
+# Make sure your version of Python is compatible with ARM64 (10x slower if not)
+wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-arm64.sh
+bash Miniforge3-MacOSX-arm64.sh
+# select the python interpreter for the VS Code project (search: "Python: Select Interpreter". Choose miniforge3/bin/python)
+# Make sure cmake is installed on your computer
+brew install cmake
+# Navigate to a directory where you want to install llama.cpp
+cd ~/Desktop
+mkdir inference
+cd inference
+# Install llama.cpp
+git clone https://github.com/ggerganov/llama.cpp
+cd llama.cpp
+mkdir build
+cd build
+cmake .. -DCMAKE_APPLE_SILICON_PROCESSOR=arm64 
+make -j
+# Increase "wired memory" limit to 26 GB / 32 GB (on MacOS Sonoma)
+sudo sysctl iogpu.wired_limit_mb=26624
+# Test llm
+cd ~/Desktop/inference/llama.cpp
+./build/bin/main --model "/Users/maxilie/Desktop/dolphin-2.6-mixtral-8x7b.Q4_K_M.gguf" -p "<|im_start|>system\nYou are a helpful assistant who can answer any question succinctly but thoroughly and expertly<|im_end|>\n<|im_start|>user\nProve that the square root of 2 is irrational<|im_end|>\n<|im_start|>assistant" -n -2
+```
+
+Parameter "c" is context length. Paramet "n" as -2 means: generate as many tokens as needed until reaching end token or context limit ("c" parameter).
+
+TODO: Make a python script that can be called with "yarn test:llm".
+
+</details>
+
+<details>
+<summary>
+Cloud Inference Engine:
+</summary>
+
+For simplicity, we recommend renting a GPU-accelerated machine from runpod.io.
+
+```bash
+todo
+```
+
+</details>
+
+
+
 ## 🧰 Making it Yours
+<details>
+
+<summary>More Details</summary>
 
 You can customize the following parts of the `agent-roger-core` package:
 
@@ -242,8 +311,6 @@ You can customize the following parts of the `agent-roger-core` package:
 
 The AI can accept any arbitrary JSON fields you provide it, and return JSON values for the named `outputFields` you request.
 
-- TODO: We will move to Microsoft's `guidance` format to: 1) more effectively communicate to the LLM how to use the tools it has available to it, and 2) enable LLM prompts to include a "blank space" for each named output field inline of one big context string (instead of being limited to a list of context fields and another list of requested output fields)
-
 ### Adding New Tools
 
 To give the AI new functionality:
@@ -257,6 +324,8 @@ To give the AI new functionality:
     - The "isAbstract" field should almost always be set to false. The system should only have one abstract task available to it (the task preset called "abstract" - see below file), which is responsible for breaking down an abstract task into simpler, more concrete sub-tasks.
 - Add a `SuggestedApproach` for your new task preset in the `packages/agent-roger-core/constants/prompts.ts` file, in the variable `SUGGESTED_APPROACHES.generateSubTasks`.
   - Adding a `SuggestedApproach` tells the AI that the task preset is available to it, and specifies the input fields it expects.
+
+</details>
 
 ### Modifying the Databases
 

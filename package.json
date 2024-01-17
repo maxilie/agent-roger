@@ -20,9 +20,11 @@
     "start:vector-db-background": "cd docker-containers/weaviate && docker-compose --env-file ../../.env up -d",
     "start:redis": "cd docker-containers/redis && docker-compose --env-file ../../.env up",
     "start:redis-background": "cd docker-containers/redis && docker-compose --env-file ../../.env up -d",
+    "start:inf-engine-gpu": "yarn workspace inf-engine start",
     "test:injected-prompts": "yarn workspace agent-roger-task-runner test:injected-prompts"
   },
   "devDependencies": {
+    "@types/node": "^18.6.0",
     "dotenv": "^16.0.3",
     "drizzle-kit": "0.17.5-e5944eb",
     "drizzle-orm": "0.25.1",

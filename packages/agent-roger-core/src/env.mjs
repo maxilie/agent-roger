@@ -26,6 +26,9 @@ const server = z.object({
   REDIS_PASS: z.string(),
   LOCAL_EMBEDDINGS_URL: z.string(),
   SHORT_EMBEDDINGS_API_KEY: z.string(),
+  LOCAL_LLM_PATH: z.string(),
+  LOCAL_LLM_CONTEXT: z.number(),
+  LOCAL_LLM_NUM_GPUS: z.number(),
 });
 
 /**
@@ -73,6 +76,9 @@ const processEnv = {
   REDIS_PASS: process.env.REDIS_PASS,
   LOCAL_EMBEDDINGS_URL: process.env.LOCAL_EMBEDDINGS_URL,
   SHORT_EMBEDDINGS_API_KEY: process.env.SHORT_EMBEDDINGS_API_KEY,
+  LOCAL_LLM_PATH: process.env.LOCAL_LLM_PATH,
+  LOCAL_LLM_CONTEXT: +process.env.LOCAL_LLM_CONTEXT,
+  LOCAL_LLM_NUM_GPUS: +process.env.LOCAL_LLM_NUM_GPUS,
 };
 
 // Don't touch the part below

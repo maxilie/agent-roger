@@ -1,4 +1,4 @@
-FROM node:18.5.0 as build
+FROM node:20.5.0 as build
 
 WORKDIR /usr/src
 
